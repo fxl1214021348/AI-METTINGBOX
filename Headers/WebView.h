@@ -3,7 +3,7 @@
 
 #include <webkit2/webkit2.h>
 
-// 创建并配置WebView实例
+// 创建并配置WebView实例（已集成JS桥接）
 WebKitWebView* webview_create(void);
 
 // 加载URL（自动去除首尾空格）
@@ -14,5 +14,10 @@ void webview_load_url(WebKitWebView *webView, const gchar *url);
 WebKitWebView* webview_on_create_new_window(WebKitWebView *web_view, 
                                              WebKitNavigationAction *action,
                                              gpointer user_data);
+
+// 页面加载完成回调（用于发送初始消息）
+void webview_on_load_changed(WebKitWebView *web_view,
+                              WebKitLoadEvent event,
+                              gpointer user_data);
 
 #endif

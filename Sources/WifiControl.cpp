@@ -12,7 +12,7 @@ void wifi_control_open_settings(void) {
         G_SUBPROCESS_FLAGS_NONE,
         &error,
         "gnome-control-center",
-        "wifi",
+        "network",
         NULL
     );
     

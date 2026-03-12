@@ -6,9 +6,11 @@ LIBS = `pkg-config --libs gtk+-3.0 webkit2gtk-4.0`
 # 源文件列表
 SRCS = Sources/main.cpp \
        Sources/WifiControl.cpp \
-       Sources/WifiHoverButton.cpp \
        Sources/WebView.cpp \
-       Sources/WindowManager.cpp
+       Sources/WindowManager.cpp \
+       Sources/WebViewJSBridge.cpp \
+       Sources/ExitSettingButton.cpp \
+       Sources/DeviceStatusDialog.cpp
 
 # 目标文件（.cpp替换为.o）
 OBJS = $(SRCS:.cpp=.o)
