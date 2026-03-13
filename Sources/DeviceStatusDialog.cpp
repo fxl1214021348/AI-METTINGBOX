@@ -1,390 +1,242 @@
 #include "DeviceStatusDialog.h"
 #include "WifiControl.h"
+#include "HotspotUtils.h"
+#include "Styles.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-// ========== 极简CSS ==========
-static const char* DIALOG_CSS = R"(
-/* 全屏背景 */
-.fullscreen-bg {
-    background-color: #f5f5f5;
-}
-
-/* 标题栏容器 */
-.title-bar-container {
-    background-color: transparent;
-    border-bottom: 1px solid #f0f0f0;
-    min-height: 80px;
-    padding: 0;
-    border: 1px solid red;
-}
-
-/* 标题 */
-.dialog-title {
-    font-size: 40px;
-    font-weight: bold;
-    color: #1A1A1A;
-}
-
-/* 关闭按钮 */
-.close-btn {
-    /* background-color: rgba(26, 26, 26, 0.08); */
-    background-color: transparent;
-    border-radius: 20px;
-    min-width: 40px;
-    min-height: 40px;
-    border: none;
-}
-
-.close-btn:hover {
-    background-color: rgba(26, 26, 26, 0.15);
-}
-
-/* 水平卡片容器 */
-.horizontal-cards-container {
-    background-color: transparent;
-    spacing: 80px;
-}
-
-/* 信息卡片 */
-.info-card {
-    background-color: white;
-    border: 1px solid #e8e8e8;
-    border-radius: 12px;
-    min-width: 720px;
-    min-height: 440px;
-    padding: 0;
-}
-
-/* 卡片标题栏 */
-.card-title-bar {
-    border-bottom: 1px solid #f0f0f0;
-    margin: 60px 52px 32px 60px;
-    padding: 0;
-}
-
-.card-title-text {
-    font-size: 36px;
-    font-weight: 600;
-    color: #1a1a1a;
-}
-
-/* 设置链接 */
-.settings-link {
-    color: #267DFF;
-    font-size: 30px;
-    font-weight: 500;
-    border: none;
-    background: transparent;
-}
-
-.settings-link:hover {
-    text-decoration: underline;
-}
-
-/*创建外部容器存放IP显示框和刷新按钮样版*/
-.ip-external-container {
-    min-width: 600px;
-    min-height: 80px;
-    margin: 24px 60px 60px 60px;
-    border: 1px solid red;
-}
-
-/* IP显示框 */
-.ip-display {
-    min-width: 520px;
-    min-height: 80px;
-    background-color: #f5f5f5;
-    border-radius: 16px;
-    margin: 0px 40px 0px 0px;
-}
-
-.ip-value {
-    font-family: monospace;
-    font-size: 30px;
-    color: #333333;
-    font-weight: 500;
-    margin-left: 32px;
-}
-
-/* 刷新按钮 */
-.refresh-btn {
-    background: transparent;
-    border: none;
-    min-width: 40px;
-    min-height: 44px;
-}
-
-/* IP和设备热点 */
-.hotspot-ipwifi {
-    margin: 40px 52px 24px 60px;
-}
-
-/* 热点内容 */
-.hotspot-content {
-    margin: 24px 52px 24px 60px;
-}
-
-.hotspot-desc {
-    font-size: 30px;
-    color: rgba(26, 26, 26, 0.6); 
-    margin-bottom: 10px;
-    border: 1px solid red;
-}
-
-.hotspot-name {
-    font-size: 20px;
-    color: #1a1a1a;
-    font-weight: 600;
-}
-
-/* 开关按钮 */
-.toggle-switch {
-    background: transparent;
-    border: none;
-    min-width: 80px;
-    min-height: 40px;
-}
-
-/* WiFi图标按钮样式 */
-.wifi-icon-btn {
-    background-color: transparent;
-    border: none;
-    padding: 8px;
-    border-radius: 8px;
-    min-width: 40px;
-    min-height: 40px;
-}
-
-/* 暂无数据 - 红色 */
-.ip-value.no-data {
-    font-size: 30px;
-    color: #FA372D;  /* 红色 */
-    font-weight: 400;
-}
-
-/* 获取中 - 蓝色或灰色 */
-.ip-value.getting {
-    color: #1A1A1A;  /* 黑色 */
-    font-weight: 400;
-    opacity: 0.35;
-}
-)";
-
 // ========== 辅助函数声明 ==========
-static gboolean is_hotspot_active(void);
+//static gboolean is_hotspot_active(void);
 
-// ========== 回调函数声明 ==========
-static void on_close_clicked(GtkWidget *widget, gpointer data);
-static void on_refresh_clicked(GtkWidget *widget, gpointer data);
-static void on_toggle_hotspot(GtkWidget *widget, gpointer data);
-static void on_go_settings(GtkWidget *widget, gpointer data);
+// // ========== 回调函数声明 ==========
+// static void on_close_clicked(GtkWidget *widget, gpointer data);
+// static void on_refresh_clicked(GtkWidget *widget, gpointer data);
+// static void on_toggle_hotspot(GtkWidget *widget, gpointer data);
+// static void on_go_settings(GtkWidget *widget, gpointer data);
 
 // ========== 工具函数实现 ==========
 
 // 检测系统热点是否实际开启
-static gboolean is_hotspot_active(void) {
-    FILE* fp = popen("nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | grep -i hotspot", "r");
-    if (!fp) {
-        printf("[DEBUG] 执行热点检测命令失败\n");
-        return FALSE;
-    }
+// static gboolean is_hotspot_active(void) {
+//     FILE* fp = popen("nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | grep -i hotspot", "r");
+//     if (!fp) {
+//         printf("[DEBUG] 执行热点检测命令失败\n");
+//         return FALSE;
+//     }
     
-    char buffer[256];
-    gboolean result = (fgets(buffer, sizeof(buffer), fp) != NULL);
-    pclose(fp);
+//     char buffer[256];
+//     gboolean result = (fgets(buffer, sizeof(buffer), fp) != NULL);
+//     pclose(fp);
     
-    printf("[DEBUG] 热点状态检测: %s\n", result ? "已开启" : "已关闭");
-    return result;
-}
+//     printf("[DEBUG] 热点状态检测: %s\n", result ? "已开启" : "已关闭");
+//     return result;
+// }
 
-// 获取设备IP地址
-gchar* get_device_ip(void) {
-    printf("[DEBUG] 获取当前活动网络IP...\n");
+// // 检测系统热点是否实际开启
+// static gboolean is_hotspot_active(void) {
+//     // 检查我们指定的热点名称是否处于活跃状态
+//     const char* ssid = "AI-Meeting";
+//     char cmd[256];
+//     snprintf(cmd, sizeof(cmd), 
+//         "nmcli -t -f NAME connection show --active 2>/dev/null | grep -q \"^%s$\"", ssid);
+//     int ret = system(cmd);
     
-    // 方法1：通过默认路由获取当前活动IP
-    // 获取默认路由的接口
-    FILE* fp = popen("ip route show default 0.0.0.0/0 2>/dev/null | awk '/default/ {print $5}' | head -1", "r");
+//     if (WIFEXITED(ret) && WEXITSTATUS(ret) == 0) {
+//         printf("[DEBUG] 热点状态检测: 已开启 (SSID: %s)\n", ssid);
+//         return TRUE;
+//     }
     
-    if (fp) {
-        char interface[64];
-        if (fgets(interface, sizeof(interface), fp)) {
-            interface[strcspn(interface, "\n")] = 0;
-            pclose(fp);
+//     printf("[DEBUG] 热点状态检测: 已关闭\n");
+//     return FALSE;
+// }
+
+// // 获取设备IP地址
+// gchar* get_device_ip(void) {
+//     printf("[DEBUG] 获取当前活动网络IP...\n");
+    
+//     // 方法1：通过默认路由获取当前活动IP
+//     // 获取默认路由的接口
+//     FILE* fp = popen("ip route show default 0.0.0.0/0 2>/dev/null | awk '/default/ {print $5}' | head -1", "r");
+    
+//     if (fp) {
+//         char interface[64];
+//         if (fgets(interface, sizeof(interface), fp)) {
+//             interface[strcspn(interface, "\n")] = 0;
+//             pclose(fp);
             
-            if (strlen(interface) > 0) {
-                printf("[DEBUG] 当前活动接口: %s\n", interface);
+//             if (strlen(interface) > 0) {
+//                 printf("[DEBUG] 当前活动接口: %s\n", interface);
                 
-                // 获取该接口的IP
-                gchar command[256];
-                snprintf(command, sizeof(command), 
-                    "ip -4 addr show %s 2>/dev/null | awk '/inet/ {print $2}' | cut -d/ -f1 | head -1", 
-                    interface);
+//                 // 获取该接口的IP
+//                 gchar command[256];
+//                 snprintf(command, sizeof(command), 
+//                     "ip -4 addr show %s 2>/dev/null | awk '/inet/ {print $2}' | cut -d/ -f1 | head -1", 
+//                     interface);
                 
-                fp = popen(command, "r");
-                if (fp) {
-                    char ip[64];
-                    if (fgets(ip, sizeof(ip), fp)) {
-                        ip[strcspn(ip, "\n")] = 0;
-                        pclose(fp);
+//                 fp = popen(command, "r");
+//                 if (fp) {
+//                     char ip[64];
+//                     if (fgets(ip, sizeof(ip), fp)) {
+//                         ip[strcspn(ip, "\n")] = 0;
+//                         pclose(fp);
                         
-                        if (strlen(ip) > 0 && strcmp(ip, "127.0.0.1") != 0) {  // 排除回环地址
-                            printf("[DEBUG] 当前活动IP: %s\n", ip);
-                            return g_strdup(ip);
-                        }
-                    }
-                    pclose(fp);
-                }
-            }
-        } else {
-            pclose(fp);
-        }
-    }
+//                         if (strlen(ip) > 0 && strcmp(ip, "127.0.0.1") != 0) {  // 排除回环地址
+//                             printf("[DEBUG] 当前活动IP: %s\n", ip);
+//                             return g_strdup(ip);
+//                         }
+//                     }
+//                     pclose(fp);
+//                 }
+//             }
+//         } else {
+//             pclose(fp);
+//         }
+//     }
     
-    // ========== 修改开始 ==========
-    // 检查是否有非回环的IP地址
-    // 使用更精确的命令排除回环接口
-    fp = popen("ip -4 addr show 2>/dev/null | grep -v ' lo:' | grep 'inet ' | head -1 | awk '{print $2}' | cut -d/ -f1", "r");
-    if (fp) {
-        char ip[64] = {0};
-        if (fgets(ip, sizeof(ip), fp)) {
-            ip[strcspn(ip, "\n")] = 0;
-            pclose(fp);
+//     // ========== 修改开始 ==========
+//     // 检查是否有非回环的IP地址
+//     // 使用更精确的命令排除回环接口
+//     fp = popen("ip -4 addr show 2>/dev/null | grep -v ' lo:' | grep 'inet ' | head -1 | awk '{print $2}' | cut -d/ -f1", "r");
+//     if (fp) {
+//         char ip[64] = {0};
+//         if (fgets(ip, sizeof(ip), fp)) {
+//             ip[strcspn(ip, "\n")] = 0;
+//             pclose(fp);
             
-            if (strlen(ip) > 0) {
-                // 再次检查是否为回环地址（可能有多个回环接口）
-                if (strncmp(ip, "127.", 4) != 0) {  // 排除所有127.x.x.x地址
-                    printf("[DEBUG] 获取到非回环IP: %s\n", ip);
-                    return g_strdup(ip);
-                } else {
-                    printf("[DEBUG] 排除回环地址: %s\n", ip);
-                }
-            }
-        } else {
-            pclose(fp);
-        }
-    }
+//             if (strlen(ip) > 0) {
+//                 // 再次检查是否为回环地址（可能有多个回环接口）
+//                 if (strncmp(ip, "127.", 4) != 0) {  // 排除所有127.x.x.x地址
+//                     printf("[DEBUG] 获取到非回环IP: %s\n", ip);
+//                     return g_strdup(ip);
+//                 } else {
+//                     printf("[DEBUG] 排除回环地址: %s\n", ip);
+//                 }
+//             }
+//         } else {
+//             pclose(fp);
+//         }
+//     }
     
-    // 检查是否有活动的网络连接（非回环）
-    fp = popen("nmcli -t -f DEVICE,CONNECTION,TYPE device status 2>/dev/null | grep -E '(wifi|ethernet)' | grep -v '^lo:' | head -1", "r");
-    if (fp) {
-        char line[256];
-        if (fgets(line, sizeof(line), fp)) {
-            pclose(fp);
-            // 解析设备状态
-            char* device = strtok(line, ":");
-            char* connection = strtok(NULL, ":");
-            char* type = strtok(NULL, ":");
+//     // 检查是否有活动的网络连接（非回环）
+//     fp = popen("nmcli -t -f DEVICE,CONNECTION,TYPE device status 2>/dev/null | grep -E '(wifi|ethernet)' | grep -v '^lo:' | head -1", "r");
+//     if (fp) {
+//         char line[256];
+//         if (fgets(line, sizeof(line), fp)) {
+//             pclose(fp);
+//             // 解析设备状态
+//             char* device = strtok(line, ":");
+//             char* connection = strtok(NULL, ":");
+//             char* type = strtok(NULL, ":");
             
-            if (device && connection && type) {
-                connection[strcspn(connection, "\n")] = 0;
-                printf("[DEBUG] 检测到网络设备: %s, 连接: %s, 类型: %s\n", device, connection, type);
+//             if (device && connection && type) {
+//                 connection[strcspn(connection, "\n")] = 0;
+//                 printf("[DEBUG] 检测到网络设备: %s, 连接: %s, 类型: %s\n", device, connection, type);
                 
-                if (strcmp(connection, "--") != 0 && strlen(connection) > 0) {
-                    printf("[DEBUG] 设备有连接但无IP\n");
-                    return g_strdup("IP_GETTING");  // 有连接但无IP
-                }
-            }
-        } else {
-            pclose(fp);
-        }
-    }
+//                 if (strcmp(connection, "--") != 0 && strlen(connection) > 0) {
+//                     printf("[DEBUG] 设备有连接但无IP\n");
+//                     return g_strdup("IP_GETTING");  // 有连接但无IP
+//                 }
+//             }
+//         } else {
+//             pclose(fp);
+//         }
+//     }
     
-    // 检查是否有物理网络接口存在
-    fp = popen("ls /sys/class/net 2>/dev/null | grep -v '^lo$' | grep -E '^(eth|en|wlan|wlp|wls|wl)' | head -1", "r");
-    if (fp) {
-        char iface[64] = {0};
-        if (fgets(iface, sizeof(iface), fp)) {
-            iface[strcspn(iface, "\n")] = 0;
-            pclose(fp);
+//     // 检查是否有物理网络接口存在
+//     fp = popen("ls /sys/class/net 2>/dev/null | grep -v '^lo$' | grep -E '^(eth|en|wlan|wlp|wls|wl)' | head -1", "r");
+//     if (fp) {
+//         char iface[64] = {0};
+//         if (fgets(iface, sizeof(iface), fp)) {
+//             iface[strcspn(iface, "\n")] = 0;
+//             pclose(fp);
             
-            if (strlen(iface) > 0) {
-                printf("[DEBUG] 检测到物理网络接口: %s\n", iface);
-                return g_strdup("NO_IP_DETECTED");  // 有网卡但未连接
-            }
-        }
-        pclose(fp);
-    }
+//             if (strlen(iface) > 0) {
+//                 printf("[DEBUG] 检测到物理网络接口: %s\n", iface);
+//                 return g_strdup("NO_IP_DETECTED");  // 有网卡但未连接
+//             }
+//         }
+//         pclose(fp);
+//     }
     
-    // 最后检查：通过nmcli检查网络连接状态
-    fp = popen("nmcli -t -f STATE general 2>/dev/null | head -1", "r");
-    if (fp) {
-        char state[32];
-        if (fgets(state, sizeof(state), fp)) {
-            state[strcspn(state, "\n")] = 0;
-            pclose(fp);
+//     // 最后检查：通过nmcli检查网络连接状态
+//     fp = popen("nmcli -t -f STATE general 2>/dev/null | head -1", "r");
+//     if (fp) {
+//         char state[32];
+//         if (fgets(state, sizeof(state), fp)) {
+//             state[strcspn(state, "\n")] = 0;
+//             pclose(fp);
             
-            if (strcmp(state, "connected") == 0) {
-                printf("[DEBUG] NetworkManager状态: 已连接\n");
-                return g_strdup("IP_GETTING");
-            } else if (strcmp(state, "connecting") == 0) {
-                printf("[DEBUG] NetworkManager状态: 连接中\n");
-                return g_strdup("IP_GETTING");
-            } else {
-                printf("[DEBUG] NetworkManager状态: %s\n", state);
-            }
-        } else {
-            pclose(fp);
-        }
-    }
-    // ========== 修改结束 ==========
+//             if (strcmp(state, "connected") == 0) {
+//                 printf("[DEBUG] NetworkManager状态: 已连接\n");
+//                 return g_strdup("IP_GETTING");
+//             } else if (strcmp(state, "connecting") == 0) {
+//                 printf("[DEBUG] NetworkManager状态: 连接中\n");
+//                 return g_strdup("IP_GETTING");
+//             } else {
+//                 printf("[DEBUG] NetworkManager状态: %s\n", state);
+//             }
+//         } else {
+//             pclose(fp);
+//         }
+//     }
+//     // ========== 修改结束 ==========
     
-    printf("[DEBUG] 无网络连接\n");
-    return g_strdup("NO_IP_DETECTED");  // 默认返回"暂无数据"
-}
+//     printf("[DEBUG] 无网络连接\n");
+//     return g_strdup("NO_IP_DETECTED");  // 默认返回"暂无数据"
+// }
 
-// 获取热点名称（获取的SSID）使用SSID当热点名称
-gchar* get_hotspot_name(void) {
-    printf("[DEBUG] 获取热点名称...\n");
+// // 获取热点名称（获取的SSID）使用SSID当热点名称
+// gchar* get_hotspot_name(void) {
+//     printf("[DEBUG] 获取热点名称...\n");
     
-    // 方法1：从活跃连接获取热点名称
-    FILE* fp = popen("nmcli -t -f NAME connection show --active 2>/dev/null | grep -i hotspot | head -1", "r");
-    if (fp) {
-        char conn_name[256];
-        if (fgets(conn_name, sizeof(conn_name), fp)) {
-            conn_name[strcspn(conn_name, "\n")] = 0;
-            printf("[DEBUG] 找到活跃热点连接: %s\n", conn_name);
+//     // 方法1：从活跃连接获取热点名称
+//     FILE* fp = popen("nmcli -t -f NAME connection show --active 2>/dev/null | grep -i AI-Meeting | head -1", "r");
+//     if (fp) {
+//         char conn_name[256];
+//         if (fgets(conn_name, sizeof(conn_name), fp)) {
+//             conn_name[strcspn(conn_name, "\n")] = 0;
+//             printf("[DEBUG] 找到活跃热点连接: %s\n", conn_name);
             
-            // 获取这个连接的SSID
-            pclose(fp);
+//             // 获取这个连接的SSID
+//             pclose(fp);
             
-            gchar cmd[512];
-            snprintf(cmd, sizeof(cmd), 
-                "nmcli -t -f 802-11-wireless.ssid connection show \"%s\" 2>/dev/null", 
-                conn_name);
+//             gchar cmd[512];
+//             snprintf(cmd, sizeof(cmd), 
+//                 "nmcli -t -f 802-11-wireless.ssid connection show \"%s\" 2>/dev/null", 
+//                 conn_name);
             
-            fp = popen(cmd, "r");
-            if (fp) {
-                char buffer[256];
-                if (fgets(buffer, sizeof(buffer), fp)) {
-                    buffer[strcspn(buffer, "\n")] = 0;
-                    printf("[DEBUG] 获取到SSID配置: '%s'\n", buffer);
+//             fp = popen(cmd, "r");
+//             if (fp) {
+//                 char buffer[256];
+//                 if (fgets(buffer, sizeof(buffer), fp)) {
+//                     buffer[strcspn(buffer, "\n")] = 0;
+//                     printf("[DEBUG] 获取到SSID配置: '%s'\n", buffer);
                     
-                    // 提取SSID
-                    char* colon = strchr(buffer, ':');
-                    if (colon) {
-                        gchar* result = g_strdup(colon + 1);
-                        pclose(fp);
+//                     // 提取SSID
+//                     char* colon = strchr(buffer, ':');
+//                     if (colon) {
+//                         gchar* result = g_strdup(colon + 1);
+//                         pclose(fp);
                         
-                        if (strlen(result) > 0) {
-                            printf("[DEBUG] 热点名称: '%s'\n", result);
-                            return result;
-                        }
-                        g_free(result);
-                    }
-                }
-                pclose(fp);
-            }
-        } else {
-            pclose(fp);
-        }
-    }
+//                         if (strlen(result) > 0) {
+//                             printf("[DEBUG] 热点名称: '%s'\n", result);
+//                             return result;
+//                         }
+//                         g_free(result);
+//                     }
+//                 }
+//                 pclose(fp);
+//             }
+//         } else {
+//             pclose(fp);
+//         }
+//     }
     
-    printf("[DEBUG] 使用默认热点名称\n");
-    return g_strdup("AI-Meeting");
-}
+//     printf("[DEBUG] 使用默认热点名称\n");
+//     return g_strdup("AI-Meeting");
+// }
 
 // 获取开启热点的名称（非SSID）
 // gchar* get_hotspot_connection_name(void) {
@@ -407,84 +259,84 @@ gchar* get_hotspot_name(void) {
 //     return g_strdup("Hotspot");
 // }
 
-// 获取热点AP的IP地址（主机在热点网络中的IP）
-gchar* get_hotspot_ap_ip(void) {
-    printf("[DEBUG] 获取热点AP IP地址（热点模式）...\n");
+// // 获取热点AP的IP地址（主机在热点网络中的IP）
+// gchar* get_hotspot_ap_ip(void) {
+//     printf("[DEBUG] 获取热点AP IP地址（热点模式）...\n");
     
-    // 方法1：检查无线网卡是否处于AP模式，并获取其IP
-    // 先找出所有无线接口
-    FILE* fp = popen("iw dev 2>/dev/null | awk '/Interface/ {print $2}'", "r");
-    if (!fp) {
-        printf("[ERROR] 无法执行iw命令，可能没有安装wireless-tools\n");
-        return g_strdup("10.42.0.1");
-    }
+//     // 方法1：检查无线网卡是否处于AP模式，并获取其IP
+//     // 先找出所有无线接口
+//     FILE* fp = popen("iw dev 2>/dev/null | awk '/Interface/ {print $2}'", "r");
+//     if (!fp) {
+//         printf("[ERROR] 无法执行iw命令，可能没有安装wireless-tools\n");
+//         return g_strdup("10.42.0.1");
+//     }
     
-    char wifi_iface[64] = {0};
-    gchar* hotspot_ip = NULL;
+//     char wifi_iface[64] = {0};
+//     gchar* hotspot_ip = NULL;
     
-    while (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
-        wifi_iface[strcspn(wifi_iface, "\n")] = 0;
+//     while (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
+//         wifi_iface[strcspn(wifi_iface, "\n")] = 0;
         
-        if (strlen(wifi_iface) > 0) {
-            printf("[DEBUG] 检查无线接口: %s\n", wifi_iface);
+//         if (strlen(wifi_iface) > 0) {
+//             printf("[DEBUG] 检查无线接口: %s\n", wifi_iface);
             
-            // 检查这个接口是否处于AP模式
-            gchar check_cmd[256];
-            snprintf(check_cmd, sizeof(check_cmd), 
-                     "iw dev %s info 2>/dev/null | grep -q 'type AP' && echo 'AP_MODE'", 
-                     wifi_iface);
+//             // 检查这个接口是否处于AP模式
+//             gchar check_cmd[256];
+//             snprintf(check_cmd, sizeof(check_cmd), 
+//                      "iw dev %s info 2>/dev/null | grep -q 'type AP' && echo 'AP_MODE'", 
+//                      wifi_iface);
             
-            FILE* check_fp = popen(check_cmd, "r");
-            if (check_fp) {
-                char result[32] = {0};
-                if (fgets(result, sizeof(result), check_fp)) {
-                    if (strstr(result, "AP_MODE") != NULL) {
-                        printf("[DEBUG] 接口 %s 处于AP模式（热点模式）\n", wifi_iface);
+//             FILE* check_fp = popen(check_cmd, "r");
+//             if (check_fp) {
+//                 char result[32] = {0};
+//                 if (fgets(result, sizeof(result), check_fp)) {
+//                     if (strstr(result, "AP_MODE") != NULL) {
+//                         printf("[DEBUG] 接口 %s 处于AP模式（热点模式）\n", wifi_iface);
                         
-                        // 现在获取这个AP接口的IP
-                        gchar ip_cmd[256];
-                        snprintf(ip_cmd, sizeof(ip_cmd),
-                                 "ip -4 addr show dev %s 2>/dev/null | "
-                                 "awk '/inet/ {print $2}' | cut -d/ -f1 | head -1",
-                                 wifi_iface);
+//                         // 现在获取这个AP接口的IP
+//                         gchar ip_cmd[256];
+//                         snprintf(ip_cmd, sizeof(ip_cmd),
+//                                  "ip -4 addr show dev %s 2>/dev/null | "
+//                                  "awk '/inet/ {print $2}' | cut -d/ -f1 | head -1",
+//                                  wifi_iface);
                         
-                        pclose(check_fp);
-                        FILE* ip_fp = popen(ip_cmd, "r");
-                        if (ip_fp) {
-                            char ip[64] = {0};
-                            if (fgets(ip, sizeof(ip), ip_fp)) {
-                                ip[strcspn(ip, "\n")] = 0;
-                                if (strlen(ip) > 0) {
-                                    printf("[DEBUG] 热点AP IP地址: %s (接口: %s)\n", ip, wifi_iface);
-                                    pclose(ip_fp);
-                                    pclose(fp);
-                                    return g_strdup(ip);
-                                }
-                            }
-                            pclose(ip_fp);
-                        }
-                    }
-                }
-                pclose(check_fp);
-            }
-        }
-    }
-    pclose(fp);
+//                         pclose(check_fp);
+//                         FILE* ip_fp = popen(ip_cmd, "r");
+//                         if (ip_fp) {
+//                             char ip[64] = {0};
+//                             if (fgets(ip, sizeof(ip), ip_fp)) {
+//                                 ip[strcspn(ip, "\n")] = 0;
+//                                 if (strlen(ip) > 0) {
+//                                     printf("[DEBUG] 热点AP IP地址: %s (接口: %s)\n", ip, wifi_iface);
+//                                     pclose(ip_fp);
+//                                     pclose(fp);
+//                                     return g_strdup(ip);
+//                                 }
+//                             }
+//                             pclose(ip_fp);
+//                         }
+//                     }
+//                 }
+//                 pclose(check_fp);
+//             }
+//         }
+//     }
+//     pclose(fp);
 
-    printf("[DEBUG] 使用默认热点AP IP\n");
-    return g_strdup("10.42.0.1");
-}
+//     printf("[DEBUG] 使用默认热点AP IP\n");
+//     return g_strdup("10.42.0.1");
+// }
 
 // ========== UI回调函数实现 ==========
 
 // 关闭对话框
-static void on_close_clicked(GtkWidget *widget, gpointer data) {
+void on_close_clicked(GtkWidget *widget, gpointer data) {
     GtkWidget *dialog = GTK_WIDGET(data);
     gtk_widget_destroy(dialog);
 }
 
 // 刷新IP地址
-static void on_refresh_clicked(GtkWidget *widget, gpointer data) {
+void on_refresh_clicked(GtkWidget *widget, gpointer data) {
     // GtkWidget *ip_label = GTK_WIDGET(data);
     // gchar* ip = get_device_ip();
     // gtk_label_set_text(GTK_LABEL(ip_label), ip);
@@ -512,7 +364,157 @@ static void on_refresh_clicked(GtkWidget *widget, gpointer data) {
 }
 
 // 热点开关回调函数
-static void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
+// static void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
+//     // 防抖动：防止快速连续点击
+//     static gint64 last_click_time = 0;
+//     gint64 now = g_get_monotonic_time();
+//     if (now - last_click_time < 1000000) { // 1秒内只能点击一次
+//         printf("[DEBUG] 操作太快，请稍候\n");
+//         return;
+//     }
+//     last_click_time = now;
+    
+//     // 从按钮获取当前状态
+//     gpointer state_ptr = g_object_get_data(G_OBJECT(widget), "hotspot_state");
+//     gboolean hotspot_on = (state_ptr != NULL) ? GPOINTER_TO_INT(state_ptr) : FALSE;
+    
+//     GtkWidget *status_label = GTK_WIDGET(g_object_get_data(G_OBJECT(widget), "status_label"));
+//     GtkWidget *name_label = GTK_WIDGET(g_object_get_data(G_OBJECT(widget), "name_label"));
+    
+//     // 切换状态
+//     hotspot_on = !hotspot_on;
+    
+//     if (hotspot_on) {
+//         // 开启热点
+//         printf("[DEBUG] 正在开启热点...\n");
+        
+//         // 1. 更新UI状态
+//         gtk_label_set_text(GTK_LABEL(status_label), "正在开启热点...");
+
+//         // ========== 修改开始：更新IP显示为"获取中" ==========
+//         // 找到IP标签并更新
+//         GtkWidget *dialog = gtk_widget_get_toplevel(widget);
+//         GtkWidget *ip_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "ip_label_ref");
+//         if (ip_label) {
+//             gtk_label_set_text(GTK_LABEL(ip_label), "获取中...");
+//             // 设置样式
+//             gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "no-data");
+//             gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "getting");
+//             gtk_style_context_add_class(gtk_widget_get_style_context(ip_label), "getting");
+//         }
+//         // ========== 修改结束 ==========
+
+//         GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
+//         gtk_button_set_image(GTK_BUTTON(widget), image);
+        
+//         // 2. 执行开启命令
+//         int result = system("timeout 5 nmcli device wifi hotspot 2>/dev/null");
+        
+//         if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+//             // 3. 等待热点完全启动
+//             //sleep(2);
+
+//             // ========== 新增代码开始 ==========
+//             // gchar* hotspot_name11 = get_hotspot_connection_name();
+
+//             // if (strlen(hotspot_name11) > 0) {
+//             //     // 修改为无密码热点
+//             //     gchar modify_cmd[512];
+//             //     snprintf(modify_cmd, sizeof(modify_cmd),
+//             //         "nmcli connection modify \"%s\" 802-11-wireless-security.key-mgmt none 2>/dev/null && "
+//             //         "nmcli connection down \"%s\" 2>/dev/null && "
+//             //         "nmcli connection up \"%s\" 2>/dev/null",
+//             //         hotspot_name11, hotspot_name11, hotspot_name11);
+                
+//             //     int modify_result = system(modify_cmd);
+//             //     if (WIFEXITED(modify_result) && WEXITSTATUS(modify_result) == 0) {
+//             //         printf("[DEBUG] 成功修改为无密码热点\n");
+//             //     } else {
+//             //         printf("[ERROR] 修改为无密码热点失败: %d\n", WEXITSTATUS(modify_result));
+//             //     }
+//             // }
+//             // ========== 新增代码结束 ==========
+
+//             gchar* hostpot_ip = get_hotspot_ap_ip();
+//             printf("热点IP:%s",hostpot_ip);
+//             // 4. 获取热点名称并更新UI
+//             gchar* hotspot_name = get_hotspot_name();
+//             gchar* formatted_text = g_strdup_printf("设备热点已开启。热点名称： %s 热点IP： %s", hotspot_name, hostpot_ip);
+//             gtk_label_set_text(GTK_LABEL(status_label), formatted_text);
+//             //gtk_label_set_text(GTK_LABEL(name_label), hotspot_name);
+            
+//             g_free(formatted_text);
+//             g_free(hotspot_name);
+            
+//             printf("[DEBUG] 热点开启成功\n");
+            
+//             // 5. 保存新状态
+//             g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(TRUE));
+            
+//         } else {
+//             // 开启失败
+//             gtk_label_set_text(GTK_LABEL(status_label), "热点开启失败，请检查网络");
+//             printf("[ERROR] 热点开启失败，错误码: %d\n", WEXITSTATUS(result));
+            
+//             // 回退UI
+//             GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+//             gtk_button_set_image(GTK_BUTTON(widget), image);
+            
+//             // 保存状态
+//             g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(FALSE));
+//         }
+        
+//     } else {
+//         // 关闭热点
+//         printf("[DEBUG] 正在关闭热点...\n");
+        
+//         // 1. 更新UI状态
+//         gtk_label_set_text(GTK_LABEL(status_label), "正在关闭热点...");
+
+//         // ========== 修改开始：更新IP显示为"获取中" ==========
+//         GtkWidget *dialog = gtk_widget_get_toplevel(widget);
+//         GtkWidget *ip_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "ip_label_ref");
+//         if (ip_label) {
+//             gtk_label_set_text(GTK_LABEL(ip_label), "获取中...");
+//             gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "no-data");
+//             gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "getting");
+//             gtk_style_context_add_class(gtk_widget_get_style_context(ip_label), "getting");
+//         }
+//         // ========== 修改结束 =========
+
+//         GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+//         gtk_button_set_image(GTK_BUTTON(widget), image);
+        
+//         // 2. 执行关闭命令
+//         int result = system("timeout 5 nmcli connection down \"$(nmcli -t -f NAME connection show --active | grep -i hotspot)\" 2>/dev/null");
+        
+//         if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+//             // 关闭成功
+//             gtk_label_set_text(GTK_LABEL(status_label), 
+//                 "设备热点已关闭。可通过上方的开关进行开启或按下设备上的");
+//             gtk_label_set_text(GTK_LABEL(name_label), "");
+//             printf("[DEBUG] 热点关闭成功\n");
+            
+//             // 保存新状态
+//             g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(FALSE));
+            
+//         } else {
+//             // 关闭失败
+//             gtk_label_set_text(GTK_LABEL(status_label), "热点关闭失败");
+//             printf("[ERROR] 热点关闭失败，错误码: %d\n", WEXITSTATUS(result));
+            
+//             // 回退UI
+//             GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
+//             gtk_button_set_image(GTK_BUTTON(widget), image);
+            
+//             // 保存状态
+//             g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(TRUE));
+//         }
+//     }
+// }
+
+// 热点开关回调函数
+void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
     // 防抖动：防止快速连续点击
     static gint64 last_click_time = 0;
     gint64 now = g_get_monotonic_time();
@@ -533,93 +535,119 @@ static void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
     hotspot_on = !hotspot_on;
     
     if (hotspot_on) {
-        // 开启热点
-        printf("[DEBUG] 正在开启热点...\n");
+        // ========== 开启热点 - 修改开始 ==========
+        printf("[DEBUG] 正在开启无密码热点...\n");
         
         // 1. 更新UI状态
         gtk_label_set_text(GTK_LABEL(status_label), "正在开启热点...");
 
-        // ========== 修改开始：更新IP显示为"获取中" ==========
-        // 找到IP标签并更新
+        // 更新IP显示为"获取中"
         GtkWidget *dialog = gtk_widget_get_toplevel(widget);
         GtkWidget *ip_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "ip_label_ref");
         if (ip_label) {
             gtk_label_set_text(GTK_LABEL(ip_label), "获取中...");
-            // 设置样式
             gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "no-data");
             gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "getting");
             gtk_style_context_add_class(gtk_widget_get_style_context(ip_label), "getting");
         }
-        // ========== 修改结束 ==========
 
         GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
         gtk_button_set_image(GTK_BUTTON(widget), image);
         
-        // 2. 执行开启命令
-        int result = system("timeout 5 nmcli device wifi hotspot 2>/dev/null");
-        
-        if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
-            // 3. 等待热点完全启动
-            //sleep(2);
-
-            // ========== 新增代码开始 ==========
-            // gchar* hotspot_name11 = get_hotspot_connection_name();
-
-            // if (strlen(hotspot_name11) > 0) {
-            //     // 修改为无密码热点
-            //     gchar modify_cmd[512];
-            //     snprintf(modify_cmd, sizeof(modify_cmd),
-            //         "nmcli connection modify \"%s\" 802-11-wireless-security.key-mgmt none 2>/dev/null && "
-            //         "nmcli connection down \"%s\" 2>/dev/null && "
-            //         "nmcli connection up \"%s\" 2>/dev/null",
-            //         hotspot_name11, hotspot_name11, hotspot_name11);
-                
-            //     int modify_result = system(modify_cmd);
-            //     if (WIFEXITED(modify_result) && WEXITSTATUS(modify_result) == 0) {
-            //         printf("[DEBUG] 成功修改为无密码热点\n");
-            //     } else {
-            //         printf("[ERROR] 修改为无密码热点失败: %d\n", WEXITSTATUS(modify_result));
-            //     }
-            // }
-            // ========== 新增代码结束 ==========
-
-            gchar* hostpot_ip = get_hotspot_ap_ip();
-            printf("热点IP:%s",hostpot_ip);
-            // 4. 获取热点名称并更新UI
-            gchar* hotspot_name = get_hotspot_name();
-            gchar* formatted_text = g_strdup_printf("设备热点已开启。热点名称： %s 热点IP： %s", hotspot_name, hostpot_ip);
-            gtk_label_set_text(GTK_LABEL(status_label), formatted_text);
-            //gtk_label_set_text(GTK_LABEL(name_label), hotspot_name);
-            
-            g_free(formatted_text);
-            g_free(hotspot_name);
-            
-            printf("[DEBUG] 热点开启成功\n");
-            
-            // 5. 保存新状态
-            g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(TRUE));
-            
-        } else {
-            // 开启失败
-            gtk_label_set_text(GTK_LABEL(status_label), "热点开启失败，请检查网络");
-            printf("[ERROR] 热点开启失败，错误码: %d\n", WEXITSTATUS(result));
-            
-            // 回退UI
-            GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
-            gtk_button_set_image(GTK_BUTTON(widget), image);
-            
-            // 保存状态
-            g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(FALSE));
+        // 2. 获取无线网卡名称
+        char wifi_iface[64] = {0};
+        FILE *fp = popen("ip link | awk -F': ' '/^[0-9]+: wl/{print $2; exit}'", "r");
+        if (fp) {
+            if (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
+                wifi_iface[strcspn(wifi_iface, "\n")] = 0;
+            }
+            pclose(fp);
         }
         
+        if (strlen(wifi_iface) == 0) {
+            // 如果没找到wl开头的，尝试其他可能的无线网卡名
+            fp = popen("ip link | awk -F': ' '/^[0-9]+: (wlan|wlp|wls)/{print $2; exit}'", "r");
+            if (fp) {
+                if (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
+                    wifi_iface[strcspn(wifi_iface, "\n")] = 0;
+                }
+                pclose(fp);
+            }
+        }
+        
+        const char* ssid = "AI-Meeting";  // 热点名称，可以根据需要修改
+        
+        // 3. 删除可能存在的旧热点连接（避免冲突）
+        char cmd[1024];
+        snprintf(cmd, sizeof(cmd), 
+            "nmcli connection delete \"%s\" 2>/dev/null", ssid);
+        system(cmd);
+        
+        // 4. 创建无密码热点连接
+        // 注意：由于配置了PolicyKit，现在不需要sudo
+        if (strlen(wifi_iface) > 0) {
+            snprintf(cmd, sizeof(cmd),
+                "nmcli connection add type wifi ifname %s con-name \"%s\" ssid \"%s\" "
+                "wifi.mode ap ipv4.method shared 2>/dev/null",
+                wifi_iface, ssid, ssid);
+        } else {
+            // 如果无法自动获取网卡名，尝试不指定网卡（让nmcli自动选择）
+            snprintf(cmd, sizeof(cmd),
+                "nmcli connection add type wifi con-name \"%s\" ssid \"%s\" "
+                "wifi.mode ap ipv4.method shared 2>/dev/null",
+                ssid, ssid);
+        }
+        
+        int result = system(cmd);
+        
+        if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+            // 5. 启动热点
+            snprintf(cmd, sizeof(cmd), "nmcli connection up \"%s\" 2>/dev/null", ssid);
+            result = system(cmd);
+            
+            if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+                // 6. 获取热点信息并更新UI
+                gchar* hostpot_ip = get_hotspot_ap_ip();
+                printf("热点IP:%s", hostpot_ip);
+                
+                gchar* formatted_text = g_strdup_printf("设备热点已开启。热点名称： %s 热点IP： %s", ssid, hostpot_ip);
+                gtk_label_set_text(GTK_LABEL(status_label), formatted_text);
+                
+                g_free(formatted_text);
+                
+                printf("[DEBUG] 无密码热点开启成功\n");
+                
+                // 7. 保存新状态
+                g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(TRUE));
+            } else {
+                // 启动失败
+                gtk_label_set_text(GTK_LABEL(status_label), "热点启动失败");
+                printf("[ERROR] 热点启动失败\n");
+                
+                // 回退UI
+                GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+                gtk_button_set_image(GTK_BUTTON(widget), image);
+                g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(FALSE));
+            }
+        } else {
+            // 创建连接失败
+            gtk_label_set_text(GTK_LABEL(status_label), "热点创建失败，请检查网络");
+            printf("[ERROR] 热点创建失败\n");
+            
+            GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+            gtk_button_set_image(GTK_BUTTON(widget), image);
+            g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(FALSE));
+        }
+        // ========== 开启热点 - 修改结束 ==========
+        
     } else {
-        // 关闭热点
+        // ========== 关闭热点 - 修改开始 ==========
         printf("[DEBUG] 正在关闭热点...\n");
         
         // 1. 更新UI状态
         gtk_label_set_text(GTK_LABEL(status_label), "正在关闭热点...");
 
-        // ========== 修改开始：更新IP显示为"获取中" ==========
+        // 更新IP显示为"获取中"
         GtkWidget *dialog = gtk_widget_get_toplevel(widget);
         GtkWidget *ip_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "ip_label_ref");
         if (ip_label) {
@@ -628,13 +656,15 @@ static void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
             gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "getting");
             gtk_style_context_add_class(gtk_widget_get_style_context(ip_label), "getting");
         }
-        // ========== 修改结束 =========
 
         GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
         gtk_button_set_image(GTK_BUTTON(widget), image);
         
-        // 2. 执行关闭命令
-        int result = system("timeout 5 nmcli connection down \"$(nmcli -t -f NAME connection show --active | grep -i hotspot)\" 2>/dev/null");
+        // 2. 关闭指定名称的热点
+        const char* ssid = "AI-Meeting";  // 与开启时保持一致
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd), "nmcli connection down \"%s\" 2>/dev/null", ssid);
+        int result = system(cmd);
         
         if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
             // 关闭成功
@@ -649,26 +679,111 @@ static void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
         } else {
             // 关闭失败
             gtk_label_set_text(GTK_LABEL(status_label), "热点关闭失败");
-            printf("[ERROR] 热点关闭失败，错误码: %d\n", WEXITSTATUS(result));
+            printf("[ERROR] 热点关闭失败\n");
             
             // 回退UI
             GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
             gtk_button_set_image(GTK_BUTTON(widget), image);
-            
-            // 保存状态
             g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(TRUE));
         }
+        // ========== 关闭热点 - 修改结束 ==========
     }
 }
 
 // 前往系统设置
-static void on_go_settings(GtkWidget *widget, gpointer data) {
+void on_go_settings(GtkWidget *widget, gpointer data) {
     printf("[DEBUG] 打开网络设置...\n");
     system("gnome-control-center network 2>/dev/null 1>/dev/null &");
 }
 
 // WiFi图标点击回调函数
-static void on_wifi_icon_clicked(GtkWidget *widget, gpointer data) {
+// static void on_wifi_icon_clicked(GtkWidget *widget, gpointer data) {
+//     printf("[DEBUG] WiFi图标被点击，尝试开启热点\n");
+    
+//     // 防抖动：防止快速连续点击
+//     static gint64 last_click_time = 0;
+//     gint64 now = g_get_monotonic_time();
+//     if (now - last_click_time < 1000000) { // 1秒内只能点击一次
+//         printf("[DEBUG] 操作太快，请稍候\n");
+//         return;
+//     }
+//     last_click_time = now;
+    
+//     // 获取相关控件
+//     GtkWidget *dialog = gtk_widget_get_toplevel(widget);
+//     GtkWidget *toggle_btn = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "toggle_btn_ref");
+//     GtkWidget *status_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "status_label_ref");
+    
+//     if (!toggle_btn || !status_label) {
+//         printf("[ERROR] 无法获取相关控件引用\n");
+//         return;
+//     }
+    
+//     // 获取当前热点状态
+//     gpointer state_ptr = g_object_get_data(G_OBJECT(toggle_btn), "hotspot_state");
+//     gboolean hotspot_on = (state_ptr != NULL) ? GPOINTER_TO_INT(state_ptr) : FALSE;
+    
+//     if (hotspot_on) {
+//         printf("[DEBUG] 热点已开启，无需操作\n");
+//         return;
+//     }
+    
+//     printf("[DEBUG] 热点已关闭，开始开启热点\n");
+    
+//     // 1. 更新UI状态
+//     gtk_label_set_text(GTK_LABEL(status_label), "正在开启热点...");
+    
+//     // 2. 更新IP显示为"获取中"
+//     GtkWidget *ip_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "ip_label_ref");
+//     if (ip_label) {
+//         gtk_label_set_text(GTK_LABEL(ip_label), "获取中...");
+//         gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "no-data");
+//         gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "getting");
+//         gtk_style_context_add_class(gtk_widget_get_style_context(ip_label), "getting");
+//     }
+    
+//     // 3. 更新开关按钮图标为"on.png"
+//     GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
+//     gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
+    
+//     // 4. 执行开启命令
+//     int result = system("timeout 5 nmcli device wifi hotspot 2>/dev/null");
+    
+//     if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+//         // 5. 获取热点信息
+//         gchar* hostpot_ip = get_hotspot_ap_ip();
+//         printf("热点IP:%s", hostpot_ip);
+        
+//         gchar* hotspot_name = get_hotspot_name();
+//         gchar* formatted_text = g_strdup_printf("设备热点已开启。热点名称： %s 热点IP： %s", hotspot_name, hostpot_ip);
+        
+//         // 6. 更新状态标签
+//         gtk_label_set_text(GTK_LABEL(status_label), formatted_text);
+        
+//         // 7. 更新开关按钮状态
+//         g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(TRUE));
+        
+//         printf("[DEBUG] 热点开启成功\n");
+        
+//         g_free(formatted_text);
+//         g_free(hotspot_name);
+        
+//     } else {
+//         // 开启失败
+//         gtk_label_set_text(GTK_LABEL(status_label), "热点开启失败，请检查网络");
+//         printf("[ERROR] 热点开启失败，错误码: %d\n", WEXITSTATUS(result));
+        
+//         // 回退UI
+//         GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+//         gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
+        
+//         // 保存状态
+//         g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(FALSE));
+//     }
+// }
+
+// WiFi图标点击回调函数
+void on_wifi_icon_clicked(GtkWidget *widget, gpointer data) {
     printf("[DEBUG] WiFi图标被点击，尝试开启热点\n");
     
     // 防抖动：防止快速连续点击
@@ -717,40 +832,89 @@ static void on_wifi_icon_clicked(GtkWidget *widget, gpointer data) {
     GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
     gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
     
-    // 4. 执行开启命令
-    int result = system("timeout 5 nmcli device wifi hotspot 2>/dev/null");
+    // ========== WiFi图标开启热点 - 添加开始 ==========
+    // 获取无线网卡名称
+    char wifi_iface[64] = {0};
+    FILE *fp = popen("ip link | awk -F': ' '/^[0-9]+: wl/{print $2; exit}'", "r");
+    if (fp) {
+        if (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
+            wifi_iface[strcspn(wifi_iface, "\n")] = 0;
+        }
+        pclose(fp);
+    }
+    
+    if (strlen(wifi_iface) == 0) {
+        fp = popen("ip link | awk -F': ' '/^[0-9]+: (wlan|wlp|wls)/{print $2; exit}'", "r");
+        if (fp) {
+            if (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
+                wifi_iface[strcspn(wifi_iface, "\n")] = 0;
+            }
+            pclose(fp);
+        }
+    }
+    
+    const char* ssid = "AI-Meeting";
+    
+    // 删除旧热点连接
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd), "nmcli connection delete \"%s\" 2>/dev/null", ssid);
+    system(cmd);
+    
+    // 创建无密码热点连接
+    if (strlen(wifi_iface) > 0) {
+        snprintf(cmd, sizeof(cmd),
+            "nmcli connection add type wifi ifname %s con-name \"%s\" ssid \"%s\" "
+            "wifi.mode ap ipv4.method shared 2>/dev/null",
+            wifi_iface, ssid, ssid);
+    } else {
+        snprintf(cmd, sizeof(cmd),
+            "nmcli connection add type wifi con-name \"%s\" ssid \"%s\" "
+            "wifi.mode ap ipv4.method shared 2>/dev/null",
+            ssid, ssid);
+    }
+    
+    int result = system(cmd);
     
     if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
-        // 5. 获取热点信息
-        gchar* hostpot_ip = get_hotspot_ap_ip();
-        printf("热点IP:%s", hostpot_ip);
+        // 启动热点
+        snprintf(cmd, sizeof(cmd), "nmcli connection up \"%s\" 2>/dev/null", ssid);
+        result = system(cmd);
         
-        gchar* hotspot_name = get_hotspot_name();
-        gchar* formatted_text = g_strdup_printf("设备热点已开启。热点名称： %s 热点IP： %s", hotspot_name, hostpot_ip);
-        
-        // 6. 更新状态标签
-        gtk_label_set_text(GTK_LABEL(status_label), formatted_text);
-        
-        // 7. 更新开关按钮状态
-        g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(TRUE));
-        
-        printf("[DEBUG] 热点开启成功\n");
-        
-        g_free(formatted_text);
-        g_free(hotspot_name);
-        
+        if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+            // 获取热点信息
+            gchar* hostpot_ip = get_hotspot_ap_ip();
+            printf("热点IP:%s", hostpot_ip);
+            
+            gchar* formatted_text = g_strdup_printf("设备热点已开启。热点名称： %s 热点IP： %s", ssid, hostpot_ip);
+            
+            // 更新状态标签
+            gtk_label_set_text(GTK_LABEL(status_label), formatted_text);
+            
+            // 更新开关按钮状态
+            g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(TRUE));
+            
+            printf("[DEBUG] 无密码热点开启成功\n");
+            
+            g_free(formatted_text);
+        } else {
+            // 启动失败
+            gtk_label_set_text(GTK_LABEL(status_label), "热点启动失败，请检查网络");
+            printf("[ERROR] 热点启动失败\n");
+            
+            GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+            gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
+            g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(FALSE));
+        }
     } else {
-        // 开启失败
-        gtk_label_set_text(GTK_LABEL(status_label), "热点开启失败，请检查网络");
-        printf("[ERROR] 热点开启失败，错误码: %d\n", WEXITSTATUS(result));
+        // 创建连接失败
+        gtk_label_set_text(GTK_LABEL(status_label), "热点创建失败，请检查网络");
+        printf("[ERROR] 热点创建失败\n");
         
-        // 回退UI
         GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
         gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
-        
-        // 保存状态
         g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(FALSE));
     }
+    // ========== WiFi图标开启热点 - 添加结束 ==========
 }
 
 // ========== 主函数 ==========

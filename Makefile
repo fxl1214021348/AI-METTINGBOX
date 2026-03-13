@@ -10,7 +10,9 @@ SRCS = Sources/main.cpp \
        Sources/WindowManager.cpp \
        Sources/WebViewJSBridge.cpp \
        Sources/ExitSettingButton.cpp \
-       Sources/DeviceStatusDialog.cpp
+       Sources/DeviceStatusDialog.cpp \
+       Sources/Styles.cpp \
+       Sources/HotspotUtils.cpp
 
 # 目标文件（.cpp替换为.o）
 OBJS = $(SRCS:.cpp=.o)
