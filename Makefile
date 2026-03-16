@@ -8,7 +8,6 @@ SRCS = Sources/main.cpp \
        Sources/WifiControl.cpp \
        Sources/WebView.cpp \
        Sources/WindowManager.cpp \
-       Sources/WebViewJSBridge.cpp \
        Sources/ExitSettingButton.cpp \
        Sources/DeviceStatusDialog.cpp \
        Sources/Styles.cpp \

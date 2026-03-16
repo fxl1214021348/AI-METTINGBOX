@@ -15,9 +15,4 @@ WebKitWebView* webview_on_create_new_window(WebKitWebView *web_view,
                                              WebKitNavigationAction *action,
                                              gpointer user_data);
 
-// 页面加载完成回调（用于发送初始消息）
-void webview_on_load_changed(WebKitWebView *web_view,
-                              WebKitLoadEvent event,
-                              gpointer user_data);
-
 #endif
