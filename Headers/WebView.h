@@ -3,7 +3,7 @@
 
 #include <webkit2/webkit2.h>
 
-// 创建并配置WebView实例（已集成JS桥接）
+// 创建并配置WebView实例
 WebKitWebView* webview_create(void);
 
 // 加载URL（自动去除首尾空格）

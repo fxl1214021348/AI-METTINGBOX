@@ -2,148 +2,138 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>KShare WebView 通信测试</title>
+    <title>双向通信测试</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            padding: 20px; 
-            background: #f0f0f0;
-        }
-        .section {
-            background: white;
-            margin: 20px 0;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
-        button {
-            margin: 5px;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            border: none;
-            border-radius: 4px;
-            background: #007bff;
-            color: white;
-        }
-        button:hover { background: #0056b3; }
-        .success { background: #28a745; }
-        .warning { background: #ffc107; color: black; }
-        #status {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            padding: 10px 20px;
-            background: #333;
-            color: white;
-            border-radius: 4px;
-            max-width: 300px;
-            word-wrap: break-word;
-        }
-        .log {
-            background: #f8f9fa;
-            padding: 10px;
-            margin: 10px 0;
-            border-left: 4px solid #007bff;
-            font-family: monospace;
-            max-height: 200px;
-            overflow-y: auto;
-        }
+        body { font-family: Arial; padding: 20px; background: #f0f0f0; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        button { padding: 10px 20px; margin: 5px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        #output { background: #1e1e1e; color: #fff; padding: 15px; border-radius: 4px; height: 300px; overflow-y: auto; font-family: monospace; }
+        .msg { margin: 5px 0; padding: 5px; border-left: 3px solid #4CAF50; }
+        .js-msg { border-left-color: #ff9800; }
+        .cpp-msg { border-left-color: #2196F3; }
     </style>
 </head>
 <body>
-    <h1>🖥️ KShare WebView 通信测试平台</h1>
-    
-    <div id="status">等待C++连接...</div>
-
-    <!-- 测试1: C++桥接状态 -->
-    <div class="section">
-        <h2>1. 桥接状态检测</h2>
-        <button onclick="checkBridge()">检测 KShareAPI 是否就绪</button>
-        <div id="bridge-result" class="log"></div>
-    </div>
-
-    <!-- 测试2: JS调用C++ -->
-    <div class="section">
-        <h2>2. JS → C++ 通信测试</h2>
-        <button onclick="sendToCpp('ping')" class="success">发送 ping</button>
-        <button onclick="sendToCpp('WIFI:open')" class="success">发送 WIFI:open</button>
-        <button onclick="sendToCpp('AUDIO:start')" class="success">发送 AUDIO:start</button>
-        <button onclick="sendToCpp('UNKNOWN:command')" class="warning">发送未知命令</button>
-        <div id="js-to-cpp-log" class="log">点击按钮发送消息...</div>
-    </div>
-
-    <!-- 测试3: 接收C++消息 -->
-    <div class="section">
-        <h2>3. C++ → JS 通信测试</h2>
-        <p>注册接收回调，等待C++主动发消息（页面加载完成后C++会自动发送）</p>
-        <div id="cpp-to-js-log" class="log">等待C++消息...</div>
+    <div class="container">
+        <h1>🌐 双向通信测试</h1>
+        
+        <div class="section">
+            <h2>📤 JS → C++</h2>
+            <button onclick="sendToCpp('普通消息')">发送普通消息</button>
+            <button onclick="sendToCpp('wifi消息')">发送WiFi消息</button>
+            <button onclick="sendToCpp('device消息')">发送设备消息</button>
+            <button onclick="sendToCpp('测试: ' + Math.random())">发送随机消息</button>
+        </div>
+        
+        <div class="section">
+            <h2>📥 C++ → JS</h2>
+            <button onclick="requestFromCpp()">请求C++消息</button>
+            <button onclick="changeColor()">改变背景色</button>
+            <input type="text" id="msgInput" placeholder="输入消息" style="padding:8px; width:200px;">
+            <button onclick="sendCustom()">发送自定义</button>
+        </div>
+        
+        <div class="section">
+            <h2>📋 消息记录</h2>
+            <button onclick="clearLog()">清空</button>
+            <div id="output">
+                <div class="msg">系统: 页面加载完成</div>
+            </div>
+        </div>
     </div>
 
     <script>
-        // 日志辅助函数
-        function log(containerId, message) {
-            const div = document.getElementById(containerId);
-            const time = new Date().toLocaleTimeString();
-            div.innerHTML += `[${time}] ${message}<br>`;
-            div.scrollTop = div.scrollHeight;
-            console.log(`[${containerId}]`, message);
-        }
-
-        // 1. 检测桥接状态
-        function checkBridge() {
-            const result = document.getElementById('bridge-result');
-            if (window.KShareAPI) {
-                result.innerHTML = '✅ KShareAPI 存在<br>';
-                result.innerHTML += 'callCpp 方法: ' + (typeof window.KShareAPI.callCpp) + '<br>';
-                result.innerHTML += 'onCppMessage 方法: ' + (typeof window.KShareAPI.onCppMessage);
+        // 发送消息到C++
+        function sendToCpp(msg) {
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.fromJS) {
+                window.webkit.messageHandlers.fromJS.postMessage(msg);
+                addMessage('JS →', msg, 'js-msg');
             } else {
-                result.innerHTML = '❌ KShareAPI 不存在 - 桥接未初始化';
+                addMessage('错误', '通信通道不可用', 'error');
             }
         }
-
-        // 2. JS调用C++
-        function sendToCpp(data) {
-            if (!window.KShareAPI || !window.KShareAPI.callCpp) {
-                log('js-to-cpp-log', '❌ 错误: KShareAPI 未就绪');
-                return;
-            }
-            
-            log('js-to-cpp-log', '📤 发送: ' + data);
-            try {
-                window.KShareAPI.callCpp(data);
-                log('js-to-cpp-log', '✅ 发送成功');
-            } catch (e) {
-                log('js-to-cpp-log', '❌ 发送失败: ' + e.message);
+        
+        // 请求C++消息
+        function requestFromCpp() {
+            addMessage('系统', '等待C++响应...', '');
+        }
+        
+        // 改变背景色
+        function changeColor() {
+            document.body.style.backgroundColor = '#' + Math.floor(Math.random()*16777215).toString(16);
+            addMessage('系统', '背景色已改变', '');
+        }
+        
+        // 发送自定义消息
+        function sendCustom() {
+            const input = document.getElementById('msgInput');
+            if (input.value) {
+                sendToCpp(input.value);
+                input.value = '';
             }
         }
-
-        // 3. 注册C++消息接收回调（关键！）
-        window.KShareAPI = window.KShareAPI || {};
-        window.KShareAPI.onCppMessage = function(msg) {
-            log('cpp-to-js-log', '📥 收到C++消息: ' + msg);
-            
-            // 更新状态栏
-            document.getElementById('status').innerHTML = '最后收到: ' + msg;
-            document.getElementById('status').style.background = '#28a745';
+        
+        //接收来自C++的消息
+        window.handleMessageFromCPP = function(message) {
+            addMessage('C++ →', message, 'cpp-msg');
         };
+        
+        // window.handleMessageFromCPP = function(message) {
+        //     try {
+        //         // 1. 尝试解析JSON
+        //         const data = JSON.parse(message);
+                
+        //         // 2. 根据类型分发处理
+        //         switch(data.type) {
+        //             case 'AAAA':
+        //                 handleAAAA(data);
+        //                 break;
+        //             default:
+        //                 //handleUnknownType(data);
+        //         }
+                
+        //     } catch(e) {
+        //         // 3. 如果不是JSON，作为普通文本处理
+        //         //handlePlainText(message);
+        //     }
+        // };
 
-        // 页面加载完成检测
+
+        // function handleAAAA(data) {
+        //     console.log('Processing AAAA message:', data);
+        //     // 具体的AAAA类型处理逻辑
+        //     if (data.value) {
+        //         // 处理payload
+        //         console.log('Processing AAAAa message:', data.value);
+        //     }
+        // }
+
+
+        // 添加消息到记录
+        function addMessage(sender, content, cls) {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.className = 'msg ' + cls;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${sender}: ${content}`;
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // 清空记录
+        function clearLog() {
+            document.getElementById('output').innerHTML = '';
+        }
+        
+        // 检查连接
         window.onload = function() {
-            console.log('页面加载完成');
-            checkBridge();
-            
-            // 3秒后自动发送测试消息
-            setTimeout(function() {
-                if (window.KShareAPI && window.KShareAPI.callCpp) {
-                    sendToCpp('自动测试: 页面已加载');
-                }
-            }, 1000);
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.fromJS) {
+                addMessage('系统', '✅ 已连接到C++', '');
+            } else {
+                addMessage('系统', '❌ 未连接到C++', '');
+            }
         };
-
-        // 备用：全局回调函数（C++可能调用这个）
-        window.onMessageFromCpp = window.KShareAPI.onCppMessage;
     </script>
 </body>
 </html>
