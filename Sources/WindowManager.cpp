@@ -150,7 +150,7 @@ GtkWidget* window_create_kiosk(void) {
 
     //webview_load_url(webView, "https://www.baidu.com");
     //webview_load_url(webView, "file:///home/q/%E4%BC%9A%E8%AE%AE%E7%9B%92%E5%AD%90%E6%96%B0%E7%94%9F%E7%89%88/AI-MTB/test.html");
-    webview_load_url(webView, "http://192.168.20.197:9999");
+    webview_load_url(webView, "http://133.156.1.107:8000/");
     gtk_container_add(GTK_CONTAINER(overlay), GTK_WIDGET(webView));
     
     create_two_buttons(GTK_OVERLAY(overlay));

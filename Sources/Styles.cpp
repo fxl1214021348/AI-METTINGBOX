@@ -29,6 +29,7 @@ const char* DIALOG_CSS = R"(
     min-width: 40px;
     min-height: 40px;
     border: none;
+    margin-right: 40px;  /* 添加右侧间距 */
 }
 
 .close-btn:hover {

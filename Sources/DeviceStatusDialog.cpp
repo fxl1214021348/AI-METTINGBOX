@@ -396,13 +396,13 @@ void device_status_dialog_show(GtkWidget *parent) {
     GtkWidget *title_bar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_style_context_add_class(gtk_widget_get_style_context(title_bar), "title-bar-container");
     gtk_widget_set_size_request(title_bar, screen_width, 80);
-    gtk_fixed_put(GTK_FIXED(fixed), title_bar, 0, 0);
+    gtk_fixed_put(GTK_FIXED(fixed), title_bar, 0, 60);
     
     // 左侧占位
     GtkWidget *left_spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_widget_set_hexpand(left_spacer, TRUE);
     // 设置左边距，补偿关闭按钮的宽度
-    gtk_widget_set_margin_end(left_spacer, 60);  // 关键：右侧增加40px外边距
+    gtk_widget_set_margin_end(left_spacer, 100);  // 关键：右侧增加40px外边距
     gtk_box_pack_start(GTK_BOX(title_bar), left_spacer, TRUE, TRUE, 0);
     
     // 标题（居中）

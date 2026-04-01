@@ -124,7 +124,7 @@ static void on_settings_clicked(GtkWidget *w, gpointer d) {
 
      // 发送消息到Web端
     if (g_webView) {
-        webview_bridge_send(g_webView, "{\"type\":\"AAAA\",\"value\":\"ture\"}");
+        webview_bridge_send(g_webView, "{\"type\":\"PAUSE_MEETING\",\"value\":\"true\"}");
         g_print("可以发送消息吗\n");
     }
 
