@@ -3,6 +3,7 @@
 #include "SerialMonitor.h"
 #include "WebViewJSBridge.h"  // 新增
 #include "ExitSettingButton.h"
+#include "HotspotUtils.h"
 #include <iostream> 
 
 // 全局串口监测器
@@ -38,6 +39,19 @@ static void on_serial_data(const UARTProtocol::Packet& pkt) {
         case 0xA1:  // 热点状态
             printf("[串口解析] 热点状态: %s\n", 
                    pkt.data2 == 0 ? "开启" : "关闭");
+            if(pkt.data2 == 0){
+                // 收到开启指令，调度到主线程执行
+                g_idle_add([](gpointer) -> gboolean {
+                    hotspot_enable();
+                    return G_SOURCE_REMOVE;
+                },nullptr);
+            } else {
+                // 收到关闭执行，调度到主线程执行
+                g_idle_add([](gpointer) -> gboolean {
+                    hotspot_disable();
+                    return G_SOURCE_REMOVE;
+                },nullptr);
+            }
             break;
             
         case 0xA2:  // 会议状态

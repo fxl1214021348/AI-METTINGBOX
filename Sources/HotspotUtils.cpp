@@ -293,3 +293,82 @@ gchar* get_hotspot_ap_ip(void) {
     printf("[DEBUG] 使用默认热点AP IP\n");
     return g_strdup("10.42.0.1");
 }
+
+// 开启热点（纯逻辑，不涉及UI）
+gboolean hotspot_enable(void) {
+    if (is_hotspot_active()) {
+        printf("[热点] 热点已处于开启状态，无需重复开启\n");
+        return TRUE;
+    }
+
+    printf("[热点] 正在开启热点...\n");
+
+    // 获取无线网卡名称
+    char wifi_iface[64] = {0};
+    FILE *fp = popen("ip link | awk -F': ' '/^[0-9]+: wl/{print $2; exit}'", "r");
+    if (fp) {
+        if (fgets(wifi_iface, sizeof(wifi_iface), fp))
+            wifi_iface[strcspn(wifi_iface, "\n")] = 0;
+        pclose(fp);
+    }
+
+    const char* ssid = "AI-Meeting";
+    char cmd[1024];
+
+    // 删除旧连接
+    snprintf(cmd, sizeof(cmd), "nmcli connection delete \"%s\" 2>/dev/null", ssid);
+    system(cmd);
+
+    // 创建热点连接
+    if (strlen(wifi_iface) > 0) {
+        snprintf(cmd, sizeof(cmd),
+            "nmcli connection add type wifi ifname %s con-name \"%s\" ssid \"%s\" "
+            "wifi.mode ap ipv4.method shared 2>/dev/null",
+            wifi_iface, ssid, ssid);
+    } else {
+        snprintf(cmd, sizeof(cmd),
+            "nmcli connection add type wifi con-name \"%s\" ssid \"%s\" "
+            "wifi.mode ap ipv4.method shared 2>/dev/null",
+            ssid, ssid);
+    }
+
+    int result = system(cmd);
+    if (!WIFEXITED(result) || WEXITSTATUS(result) != 0) {
+        printf("[热点] 创建热点连接失败\n");
+        return FALSE;
+    }
+
+    // 启动热点
+    snprintf(cmd, sizeof(cmd), "nmcli connection up \"%s\" 2>/dev/null", ssid);
+    result = system(cmd);
+    if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+        printf("[热点] 热点开启成功\n");
+        return TRUE;
+    }
+
+    printf("[热点] 热点启动失败\n");
+    return FALSE;
+}
+
+// 关闭热点（纯逻辑，不涉及UI）
+gboolean hotspot_disable(void) {
+    if (!is_hotspot_active()) {
+        printf("[热点] 热点已处于关闭状态，无需重复关闭\n");
+        return TRUE;
+    }
+
+    printf("[热点] 正在关闭热点...\n");
+
+    const char* ssid = "AI-Meeting";
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "nmcli connection down \"%s\" 2>/dev/null", ssid);
+    int result = system(cmd);
+
+    if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+        printf("[热点] 热点关闭成功\n");
+        return TRUE;
+    }
+
+    printf("[热点] 热点关闭失败\n");
+    return FALSE;
+}

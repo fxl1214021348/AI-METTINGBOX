@@ -129,11 +129,11 @@ static void on_settings_clicked(GtkWidget *w, gpointer d) {
     }
 
     // 串口回环测试 - 使用全局的g_serialMonitor
-    g_print("发送声音数据：\n");
+    g_print("发送热点数据：\n");
     
     // 检查全局对象是否存在且已初始化
     if (g_serialMonitor) {
-        if (g_serialMonitor->sendVolume(0x00)) {
+        if (g_serialMonitor->sendHotspot(true)) {
             g_print("发送成功\n");
         } else {
             g_print("发送失败\n");

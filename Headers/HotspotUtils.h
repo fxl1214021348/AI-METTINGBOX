@@ -18,4 +18,10 @@ gchar* get_hotspot_name(void);
 // 获取热点AP的IP地址（主机在热点网络中的IP）
 gchar* get_hotspot_ap_ip(void);
 
+// 开启热点（纯逻辑，不涉及UI），返回TRUE表示成功
+gboolean hotspot_enable(void);
+
+// 关闭热点（纯逻辑，不涉及UI），返回TRUE表示成功
+gboolean hotspot_disable(void);
+
 #endif
