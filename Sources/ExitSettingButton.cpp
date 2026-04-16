@@ -3,8 +3,12 @@
 #include "WebViewJSBridge.h"
 #include "WifiControl.h"
 #include "SerialMonitor.h"
+#include "ResourcePath.h"
 #include <gtk/gtk.h>
 #include <cmath>
+
+// 全局初始化一次
+std::string resPath = getResourcePath();
 
 // 声明外部全局变量（在WindowManager.cpp中定义的）
 WebKitWebView *g_webView;
@@ -147,7 +151,7 @@ void create_two_buttons(GtkOverlay *overlay) {
     // 按钮1：退出 - 左上角
     ButtonPosition pos1 = {GTK_ALIGN_START, GTK_ALIGN_START, 54, 0, 60, 0};
     GtkWidget *btn1 = create_layered_button(
-        "Assets/images/exit.png", "#cccccc", &pos1
+        resFile("images/exit.png").c_str(), "#cccccc", &pos1
     );
     g_signal_connect(btn1, "clicked", G_CALLBACK(on_exit_clicked), NULL);
     gtk_overlay_add_overlay(overlay, btn1);
@@ -155,7 +159,7 @@ void create_two_buttons(GtkOverlay *overlay) {
     // 按钮2：设置 - 左上角
     ButtonPosition pos2 = {GTK_ALIGN_START, GTK_ALIGN_START, 54, 0, 164, 0};
     GtkWidget *btn2 = create_layered_button(
-        "Assets/images/setting.png", "#cccccc", &pos2
+        resFile("images/setting.png").c_str(), "#cccccc", &pos2
     );
     g_signal_connect(btn2, "clicked", G_CALLBACK(on_settings_clicked), NULL);
     gtk_overlay_add_overlay(overlay, btn2);

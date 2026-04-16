@@ -31,4 +31,7 @@ void on_go_settings(GtkWidget *widget, gpointer data);
 // WiFi图标点击回调函数
 void on_wifi_icon_clicked(GtkWidget *widget, gpointer data);
 
+// 从外部更新热点UI状态(串口等场景调用，需在GTK主线程中调用)
+void device_status_update_hotspot_ui(gboolean hotspot_on);
+
 #endif // DEVICE_STATUS_DIALOG_H

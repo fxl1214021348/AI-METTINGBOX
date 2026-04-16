@@ -1,16 +1,21 @@
 #include "DeviceStatusDialog.h"
 #include "HotspotUtils.h"
+#include "ResourcePath.h"
 #include "Styles.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+// 全局设备状态弹窗指针（弹窗打开时有效，关闭后为NULL）
+static GtkWidget *g_device_status_dialog = nullptr;
+
 // ========== UI回调函数实现 ==========
 
 // 关闭对话框
 void on_close_clicked(GtkWidget *widget, gpointer data) {
     GtkWidget *dialog = GTK_WIDGET(data);
+    g_device_status_dialog = nullptr;
     gtk_widget_destroy(dialog);
 }
 
@@ -80,7 +85,7 @@ void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
             gtk_style_context_add_class(gtk_widget_get_style_context(ip_label), "getting");
         }
 
-        GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
+        GtkWidget *image = gtk_image_new_from_file(resFile("images/on.png").c_str());
         gtk_button_set_image(GTK_BUTTON(widget), image);
         
         // 2. 获取无线网卡名称
@@ -154,7 +159,7 @@ void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
                 printf("[ERROR] 热点启动失败\n");
                 
                 // 回退UI
-                GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+                GtkWidget *image = gtk_image_new_from_file(resFile("images/off.png").c_str());
                 gtk_button_set_image(GTK_BUTTON(widget), image);
                 g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(FALSE));
             }
@@ -163,7 +168,7 @@ void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
             gtk_label_set_text(GTK_LABEL(status_label), "热点创建失败，请检查网络");
             printf("[ERROR] 热点创建失败\n");
             
-            GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+            GtkWidget *image = gtk_image_new_from_file(resFile("images/off.png").c_str());
             gtk_button_set_image(GTK_BUTTON(widget), image);
             g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(FALSE));
         }
@@ -186,7 +191,7 @@ void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
             gtk_style_context_add_class(gtk_widget_get_style_context(ip_label), "getting");
         }
 
-        GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+        GtkWidget *image = gtk_image_new_from_file(resFile("images/off.png").c_str());
         gtk_button_set_image(GTK_BUTTON(widget), image);
         
         // 2. 关闭指定名称的热点
@@ -198,7 +203,7 @@ void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
         if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
             // 关闭成功
             gtk_label_set_text(GTK_LABEL(status_label), 
-                "设备热点已关闭。可通过上方的开关进行开启或按下设备上的");
+                "设备热点已关闭。可通过上方的开关进行开启或按下设备上的热点按钮");
             gtk_label_set_text(GTK_LABEL(name_label), "");
             printf("[DEBUG] 热点关闭成功\n");
             
@@ -211,7 +216,7 @@ void on_toggle_hotspot(GtkWidget *widget, gpointer data) {
             printf("[ERROR] 热点关闭失败\n");
             
             // 回退UI
-            GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
+            GtkWidget *image = gtk_image_new_from_file(resFile("images/on.png").c_str());
             gtk_button_set_image(GTK_BUTTON(widget), image);
             g_object_set_data(G_OBJECT(widget), "hotspot_state", GINT_TO_POINTER(TRUE));
         }
@@ -227,137 +232,137 @@ void on_go_settings(GtkWidget *widget, gpointer data) {
 
 // WiFi图标点击回调函数
 void on_wifi_icon_clicked(GtkWidget *widget, gpointer data) {
-    printf("[DEBUG] WiFi图标被点击，尝试开启热点\n");
+    // printf("[DEBUG] WiFi图标被点击，尝试开启热点\n");
     
-    // 防抖动：防止快速连续点击
-    static gint64 last_click_time = 0;
-    gint64 now = g_get_monotonic_time();
-    if (now - last_click_time < 1000000) { // 1秒内只能点击一次
-        printf("[DEBUG] 操作太快，请稍候\n");
-        return;
-    }
-    last_click_time = now;
+    // // 防抖动：防止快速连续点击
+    // static gint64 last_click_time = 0;
+    // gint64 now = g_get_monotonic_time();
+    // if (now - last_click_time < 1000000) { // 1秒内只能点击一次
+    //     printf("[DEBUG] 操作太快，请稍候\n");
+    //     return;
+    // }
+    // last_click_time = now;
     
-    // 获取相关控件
-    GtkWidget *dialog = gtk_widget_get_toplevel(widget);
-    GtkWidget *toggle_btn = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "toggle_btn_ref");
-    GtkWidget *status_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "status_label_ref");
+    // // 获取相关控件
+    // GtkWidget *dialog = gtk_widget_get_toplevel(widget);
+    // GtkWidget *toggle_btn = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "toggle_btn_ref");
+    // GtkWidget *status_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "status_label_ref");
     
-    if (!toggle_btn || !status_label) {
-        printf("[ERROR] 无法获取相关控件引用\n");
-        return;
-    }
+    // if (!toggle_btn || !status_label) {
+    //     printf("[ERROR] 无法获取相关控件引用\n");
+    //     return;
+    // }
     
-    // 获取当前热点状态
-    gpointer state_ptr = g_object_get_data(G_OBJECT(toggle_btn), "hotspot_state");
-    gboolean hotspot_on = (state_ptr != NULL) ? GPOINTER_TO_INT(state_ptr) : FALSE;
+    // // 获取当前热点状态
+    // gpointer state_ptr = g_object_get_data(G_OBJECT(toggle_btn), "hotspot_state");
+    // gboolean hotspot_on = (state_ptr != NULL) ? GPOINTER_TO_INT(state_ptr) : FALSE;
     
-    if (hotspot_on) {
-        printf("[DEBUG] 热点已开启，无需操作\n");
-        return;
-    }
+    // if (hotspot_on) {
+    //     printf("[DEBUG] 热点已开启，无需操作\n");
+    //     return;
+    // }
     
-    printf("[DEBUG] 热点已关闭，开始开启热点\n");
+    // printf("[DEBUG] 热点已关闭，开始开启热点\n");
     
-    // 1. 更新UI状态
-    gtk_label_set_text(GTK_LABEL(status_label), "正在开启热点...");
+    // // 1. 更新UI状态
+    // gtk_label_set_text(GTK_LABEL(status_label), "正在开启热点...");
     
-    // 2. 更新IP显示为"获取中"
-    GtkWidget *ip_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "ip_label_ref");
-    if (ip_label) {
-        gtk_label_set_text(GTK_LABEL(ip_label), "获取中...");
-        gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "no-data");
-        gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "getting");
-        gtk_style_context_add_class(gtk_widget_get_style_context(ip_label), "getting");
-    }
+    // // 2. 更新IP显示为"获取中"
+    // GtkWidget *ip_label = (GtkWidget*)g_object_get_data(G_OBJECT(dialog), "ip_label_ref");
+    // if (ip_label) {
+    //     gtk_label_set_text(GTK_LABEL(ip_label), "获取中...");
+    //     gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "no-data");
+    //     gtk_style_context_remove_class(gtk_widget_get_style_context(ip_label), "getting");
+    //     gtk_style_context_add_class(gtk_widget_get_style_context(ip_label), "getting");
+    // }
     
-    // 3. 更新开关按钮图标为"on.png"
-    GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
-    gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
+    // // 3. 更新开关按钮图标为"on.png"
+    // GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
+    // gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
     
-    // ========== WiFi图标开启热点 - 添加开始 ==========
-    // 获取无线网卡名称
-    char wifi_iface[64] = {0};
-    FILE *fp = popen("ip link | awk -F': ' '/^[0-9]+: wl/{print $2; exit}'", "r");
-    if (fp) {
-        if (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
-            wifi_iface[strcspn(wifi_iface, "\n")] = 0;
-        }
-        pclose(fp);
-    }
+    // // ========== WiFi图标开启热点 - 添加开始 ==========
+    // // 获取无线网卡名称
+    // char wifi_iface[64] = {0};
+    // FILE *fp = popen("ip link | awk -F': ' '/^[0-9]+: wl/{print $2; exit}'", "r");
+    // if (fp) {
+    //     if (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
+    //         wifi_iface[strcspn(wifi_iface, "\n")] = 0;
+    //     }
+    //     pclose(fp);
+    // }
     
-    if (strlen(wifi_iface) == 0) {
-        fp = popen("ip link | awk -F': ' '/^[0-9]+: (wlan|wlp|wls)/{print $2; exit}'", "r");
-        if (fp) {
-            if (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
-                wifi_iface[strcspn(wifi_iface, "\n")] = 0;
-            }
-            pclose(fp);
-        }
-    }
+    // if (strlen(wifi_iface) == 0) {
+    //     fp = popen("ip link | awk -F': ' '/^[0-9]+: (wlan|wlp|wls)/{print $2; exit}'", "r");
+    //     if (fp) {
+    //         if (fgets(wifi_iface, sizeof(wifi_iface), fp)) {
+    //             wifi_iface[strcspn(wifi_iface, "\n")] = 0;
+    //         }
+    //         pclose(fp);
+    //     }
+    // }
     
-    const char* ssid = "AI-Meeting";
+    // const char* ssid = "AI-Meeting";
     
-    // 删除旧热点连接
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd), "nmcli connection delete \"%s\" 2>/dev/null", ssid);
-    system(cmd);
+    // // 删除旧热点连接
+    // char cmd[1024];
+    // snprintf(cmd, sizeof(cmd), "nmcli connection delete \"%s\" 2>/dev/null", ssid);
+    // system(cmd);
     
-    // 创建无密码热点连接
-    if (strlen(wifi_iface) > 0) {
-        snprintf(cmd, sizeof(cmd),
-            "nmcli connection add type wifi ifname %s con-name \"%s\" ssid \"%s\" "
-            "wifi.mode ap ipv4.method shared 2>/dev/null",
-            wifi_iface, ssid, ssid);
-    } else {
-        snprintf(cmd, sizeof(cmd),
-            "nmcli connection add type wifi con-name \"%s\" ssid \"%s\" "
-            "wifi.mode ap ipv4.method shared 2>/dev/null",
-            ssid, ssid);
-    }
+    // // 创建无密码热点连接
+    // if (strlen(wifi_iface) > 0) {
+    //     snprintf(cmd, sizeof(cmd),
+    //         "nmcli connection add type wifi ifname %s con-name \"%s\" ssid \"%s\" "
+    //         "wifi.mode ap ipv4.method shared 2>/dev/null",
+    //         wifi_iface, ssid, ssid);
+    // } else {
+    //     snprintf(cmd, sizeof(cmd),
+    //         "nmcli connection add type wifi con-name \"%s\" ssid \"%s\" "
+    //         "wifi.mode ap ipv4.method shared 2>/dev/null",
+    //         ssid, ssid);
+    // }
     
-    int result = system(cmd);
+    // int result = system(cmd);
     
-    if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
-        // 启动热点
-        snprintf(cmd, sizeof(cmd), "nmcli connection up \"%s\" 2>/dev/null", ssid);
-        result = system(cmd);
+    // if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+    //     // 启动热点
+    //     snprintf(cmd, sizeof(cmd), "nmcli connection up \"%s\" 2>/dev/null", ssid);
+    //     result = system(cmd);
         
-        if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
-            // 获取热点信息
-            gchar* hostpot_ip = get_hotspot_ap_ip();
-            printf("热点IP:%s", hostpot_ip);
+    //     if (WIFEXITED(result) && WEXITSTATUS(result) == 0) {
+    //         // 获取热点信息
+    //         gchar* hostpot_ip = get_hotspot_ap_ip();
+    //         printf("热点IP:%s", hostpot_ip);
             
-            gchar* formatted_text = g_strdup_printf("设备热点已开启。热点名称： %s 热点IP： %s", ssid, hostpot_ip);
+    //         gchar* formatted_text = g_strdup_printf("设备热点已开启。热点名称： %s 热点IP： %s", ssid, hostpot_ip);
             
-            // 更新状态标签
-            gtk_label_set_text(GTK_LABEL(status_label), formatted_text);
+    //         // 更新状态标签
+    //         gtk_label_set_text(GTK_LABEL(status_label), formatted_text);
             
-            // 更新开关按钮状态
-            g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(TRUE));
+    //         // 更新开关按钮状态
+    //         g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(TRUE));
             
-            printf("[DEBUG] 无密码热点开启成功\n");
+    //         printf("[DEBUG] 无密码热点开启成功\n");
             
-            g_free(formatted_text);
-        } else {
-            // 启动失败
-            gtk_label_set_text(GTK_LABEL(status_label), "热点启动失败，请检查网络");
-            printf("[ERROR] 热点启动失败\n");
+    //         g_free(formatted_text);
+    //     } else {
+    //         // 启动失败
+    //         gtk_label_set_text(GTK_LABEL(status_label), "热点启动失败，请检查网络");
+    //         printf("[ERROR] 热点启动失败\n");
             
-            GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
-            gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
-            g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(FALSE));
-        }
-    } else {
-        // 创建连接失败
-        gtk_label_set_text(GTK_LABEL(status_label), "热点创建失败，请检查网络");
-        printf("[ERROR] 热点创建失败\n");
+    //         GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+    //         gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
+    //         g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(FALSE));
+    //     }
+    // } else {
+    //     // 创建连接失败
+    //     gtk_label_set_text(GTK_LABEL(status_label), "热点创建失败，请检查网络");
+    //     printf("[ERROR] 热点创建失败\n");
         
-        GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
-        gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
-        g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(FALSE));
-    }
-    // ========== WiFi图标开启热点 - 添加结束 ==========
+    //     GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+    //     gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
+    //     g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(FALSE));
+    // }
+    // // ========== WiFi图标开启热点 - 添加结束 ==========
 }
 
 // ========== 主函数 ==========
@@ -418,7 +423,7 @@ void device_status_dialog_show(GtkWidget *parent) {
     // 关闭按钮（在右边）
     GtkWidget *close_btn = gtk_button_new();
     gtk_style_context_add_class(gtk_widget_get_style_context(close_btn), "close-btn");
-    GtkWidget *close_img = gtk_image_new_from_file("Assets/images/close.png");
+    GtkWidget *close_img = gtk_image_new_from_file(resFile("images/close.png").c_str());
     gtk_button_set_image(GTK_BUTTON(close_btn), close_img);
     gtk_button_set_relief(GTK_BUTTON(close_btn), GTK_RELIEF_NONE);
     gtk_widget_set_can_focus(close_btn, FALSE);
@@ -447,7 +452,7 @@ void device_status_dialog_show(GtkWidget *parent) {
     gtk_style_context_add_class(gtk_widget_get_style_context(ip_header), "card-title-bar");
     gtk_box_pack_start(GTK_BOX(ip_card), ip_header, FALSE, FALSE, 0);
     
-    GtkWidget *network_icon = gtk_image_new_from_file("Assets/images/network.png");
+    GtkWidget *network_icon = gtk_image_new_from_file(resFile("images/network.png").c_str());
     gtk_box_pack_start(GTK_BOX(ip_header), network_icon, FALSE, FALSE, 0);
     
     GtkWidget *spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
@@ -514,7 +519,7 @@ void device_status_dialog_show(GtkWidget *parent) {
     // 刷新按钮
     GtkWidget *refresh_btn = gtk_button_new();
     gtk_style_context_add_class(gtk_widget_get_style_context(refresh_btn), "refresh-btn");
-    GtkWidget *refresh_img = gtk_image_new_from_file("Assets/images/refresh.png");
+    GtkWidget *refresh_img = gtk_image_new_from_file(resFile("images/refresh.png").c_str());
     gtk_button_set_image(GTK_BUTTON(refresh_btn), refresh_img);
     gtk_button_set_relief(GTK_BUTTON(refresh_btn), GTK_RELIEF_NONE);
     gtk_widget_set_can_focus(refresh_btn, FALSE);
@@ -536,7 +541,7 @@ void device_status_dialog_show(GtkWidget *parent) {
     // gtk_box_pack_start(GTK_BOX(hotspot_header), wifi_icon, FALSE, FALSE, 0);
     GtkWidget *wifi_icon_btn = gtk_button_new();
     gtk_style_context_add_class(gtk_widget_get_style_context(wifi_icon_btn), "wifi-icon-btn");  // 添加CSS类
-    GtkWidget *wifi_img = gtk_image_new_from_file("Assets/images/wifi.png");
+    GtkWidget *wifi_img = gtk_image_new_from_file(resFile("images/wifi.png").c_str());
     gtk_button_set_image(GTK_BUTTON(wifi_icon_btn), wifi_img);
     gtk_button_set_relief(GTK_BUTTON(wifi_icon_btn), GTK_RELIEF_NONE);
     gtk_widget_set_can_focus(wifi_icon_btn, FALSE);
@@ -559,10 +564,10 @@ void device_status_dialog_show(GtkWidget *parent) {
     
     // 根据状态设置按钮图标
     if (hotspot_active) {
-        GtkWidget *image = gtk_image_new_from_file("Assets/images/on.png");
+        GtkWidget *image = gtk_image_new_from_file(resFile("images/on.png").c_str());
         gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
     } else {
-        GtkWidget *image = gtk_image_new_from_file("Assets/images/off.png");
+        GtkWidget *image = gtk_image_new_from_file(resFile("images/off.png").c_str());
         gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
     }
     
@@ -605,7 +610,7 @@ void device_status_dialog_show(GtkWidget *parent) {
         g_free(hotspot_name);
     } else {
         // 热点已关闭
-        status_label = gtk_label_new("设备热点已关闭。可通过上方的开关进行开启或按下设备上的");
+        status_label = gtk_label_new("设备热点已关闭。可通过上方的开关进行开启或按下设备上的热点按钮");
     }
     
     gtk_style_context_add_class(gtk_widget_get_style_context(status_label), "hotspot-desc");
@@ -634,7 +639,58 @@ void device_status_dialog_show(GtkWidget *parent) {
 
     // 9. 显示所有组件
     gtk_widget_show_all(dialog);
+
+    // 保存全局引用，供串口等外部模块更新UI
+    g_device_status_dialog = dialog;
+    // dialog销毁时自动清空全局指针；
+    g_signal_connect(dialog, "destroy", G_CALLBACK(+[](GtkWidget*, gpointer){
+        g_device_status_dialog = nullptr;
+    }),nullptr);
     
     // 10. 清理
     g_object_unref(provider);
+}
+
+// 从外部更新热点UI状态（需在GTK主线程中调用）
+void device_status_update_hotspot_ui(gboolean hotspot_on) {
+    if (!g_device_status_dialog) {
+        // 弹窗未打开，无需更新UI
+        return;
+    }
+
+    GtkWidget *toggle_btn = GTK_WIDGET(
+        g_object_get_data(G_OBJECT(g_device_status_dialog), "toggle_btn_ref"));
+    if (!toggle_btn) return;
+
+    GtkWidget *status_label = GTK_WIDGET(
+        g_object_get_data(G_OBJECT(toggle_btn), "status_label"));
+    GtkWidget *name_label = GTK_WIDGET(
+        g_object_get_data(G_OBJECT(toggle_btn), "name_label"));
+
+    if (hotspot_on) {
+        GtkWidget *image = gtk_image_new_from_file(resFile("images/on.png").c_str());
+        gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
+        g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(TRUE));
+
+        if (status_label) {
+            gchar* hotspot_ip = get_hotspot_ap_ip();
+            gchar* hotspot_name = get_hotspot_name();
+            gchar* text = g_strdup_printf(
+                "设备热点已开启。热点名称： %s 热点IP： %s", hotspot_name, hotspot_ip);
+            gtk_label_set_text(GTK_LABEL(status_label), text);
+            g_free(text);
+            g_free(hotspot_name);
+            g_free(hotspot_ip);
+        }
+    } else {
+        GtkWidget *image = gtk_image_new_from_file(resFile("images/off.png").c_str());
+        gtk_button_set_image(GTK_BUTTON(toggle_btn), image);
+        g_object_set_data(G_OBJECT(toggle_btn), "hotspot_state", GINT_TO_POINTER(FALSE));
+
+        if (status_label)
+            gtk_label_set_text(GTK_LABEL(status_label),
+                "设备热点已关闭。可通过上方的开关进行开启或按下设备上的热点按钮");
+        if (name_label)
+            gtk_label_set_text(GTK_LABEL(name_label), "");
+    }
 }
