@@ -1,5 +1,6 @@
 // SerialMonitor.cpp
 // 功能：串口监测类的实现，包含串口操作和协议处理
+// 新协议：包头0xAA，XOR = type ^ data1
 #include "SerialMonitor.h"
 #include <fcntl.h>       // 文件控制：open, O_RDWR等
 #include <unistd.h>      // UNIX标准函数：read, write, close
@@ -115,8 +116,8 @@ void SerialMonitor::monitoringThread() {
                 // 步骤4：循环解析缓冲区中的完整数据包
                 while (receive_buffer_.size() >= 8) {  // 至少8字节才可能是一个完整包
                     
-                    // 4.1 查找包头0xF3
-                    if (receive_buffer_[0] == 0xF3) {
+                    // 4.1 查找包头0xAA
+                    if (receive_buffer_[0] == UARTProtocol::PACKET_HEADER) {
                         // 找到包头，尝试解析8字节数据包
                         UARTProtocol::Packet pkt;
                         if (UARTProtocol::parse(receive_buffer_.data(), 8, pkt)) {
@@ -180,30 +181,31 @@ void SerialMonitor::stop() {
     }
 }
 
-// ========== 发送命令实现 ==========
+// ========== App → Device 发送命令实现 ==========
 
 bool SerialMonitor::sendPower(bool on) {
-    // 构建电源命令包：数据类型0x01(发送)，功能码0xA0(电源)，状态0x00(开)/0x01(关)
-    auto data = UARTProtocol::buildPacket(0x01, 0xA0, on ? 0x00 : 0x01);
-    // 发送8字节数据
+    // 发送电源状态：TYPE_POWER + APP_POWER_ON/OFF
+    auto data = UARTProtocol::buildPacket(
+        UARTProtocol::TYPE_POWER,
+        on ? UARTProtocol::APP_POWER_ON : UARTProtocol::APP_POWER_OFF);
     return write(fd_, data.data(), data.size()) == 8;
 }
 
-bool SerialMonitor::sendVolume(uint8_t action) {
-    // 构建音量命令包：数据类型0x01(发送)，功能码0xA3(音量)，动作值
-    auto data = UARTProtocol::buildPacket(0x01, 0xA3, action);
+bool SerialMonitor::sendMeeting(uint8_t code) {
+    // 发送会议状态：TYPE_MEETING + AppMeetingCode
+    auto data = UARTProtocol::buildPacket(UARTProtocol::TYPE_MEETING, code);
     return write(fd_, data.data(), data.size()) == 8;
 }
 
-bool SerialMonitor::sendMeeting(uint8_t state) {
-    // 构建会议命令包：数据类型0x01(发送)，功能码0xA2(会议)，状态值
-    auto data = UARTProtocol::buildPacket(0x01, 0xA2, state);
+bool SerialMonitor::sendHotspot(uint8_t code) {
+    // 发送热点状态：TYPE_HOTSPOT + AppHotspotCode
+    auto data = UARTProtocol::buildPacket(UARTProtocol::TYPE_HOTSPOT, code);
     return write(fd_, data.data(), data.size()) == 8;
 }
 
-bool SerialMonitor::sendHotspot(bool on) {
-    // 构建热点命令包：数据类型0x01(发送)，功能码0xA1(热点)，状态0x00(开)/0x01(关)
-    auto data = UARTProtocol::buildPacket(0x01, 0xA1, on ? 0x00 : 0x01);
+bool SerialMonitor::sendGetWorkMode() {
+    // 发送获取工作模式请求：TYPE_MODE + APP_MODE_GET
+    auto data = UARTProtocol::buildPacket(UARTProtocol::TYPE_MODE, UARTProtocol::APP_MODE_GET);
     return write(fd_, data.data(), data.size()) == 8;
 }
 

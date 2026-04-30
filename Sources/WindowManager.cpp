@@ -5,101 +5,232 @@
 #include "ExitSettingButton.h"
 #include "HotspotUtils.h"
 #include "DeviceStatusDialog.h"
+#include "DeviceState.h"
 #include <json-glib/json-glib.h>
 #include <iostream> 
 
 // 全局串口监测器
-extern SerialMonitor* g_serialMonitor;
+SerialMonitor* g_serialMonitor;
 // 声明外部全局变量（在WindowManager.cpp中定义的）
-extern WebKitWebView *g_webView;
+WebKitWebView *g_webView;
 
 /**
  * @brief 串口数据接收回调函数
  * @param pkt 解析好的协议包
  * 
  * 当串口收到完整且有效的协议包时，此函数被调用
- * 这里我们简单打印出收到的数据
+ * 新协议：type=模块ID，data1=指令码（Device→App: 0x01起）
  */
 static void on_serial_data(const UARTProtocol::Packet& pkt) {
     // 打印原始数据（8字节十六进制）
     printf("[串口接收] 原始数据: ");
     printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
-           pkt.header,      // 包头：应该是F3
-           pkt.length,      // 数据长度
-           pkt.xorCheck,    // XOR校验值
-           pkt.dataType,    // 数据类型
-           pkt.data1,       // 数据1：功能码
-           pkt.data2,       // 数据2：状态值
-           pkt.data3,       // 数据3：预留
-           pkt.data4);      // 数据4：预留
+           pkt.header, pkt.length, pkt.xorCheck, pkt.type,
+           pkt.data1, pkt.data2, pkt.data3, pkt.data4);
     
-    // 根据功能码解析具体含义
-    switch(pkt.data1) {
-        case 0xA0:  // 电源状态
-            printf("[串口解析] 电源状态: %s\n", 
-                   pkt.data2 == 0 ? "开启" : "关闭");
-            break;
-            
-        case 0xA1:  // 热点状态
-            printf("[串口解析] 热点状态: %s\n", 
-                   pkt.data2 == 0 ? "开启" : "关闭");
-            if(pkt.data2 == 0){
-                // 收到开启指令，调度到主线程执行
-                g_idle_add([](gpointer) -> gboolean {
-                    if(hotspot_enable()){
-                        device_status_update_hotspot_ui(TRUE);
-                    }
-                    return G_SOURCE_REMOVE;
-                },nullptr);
-            } else {
-                // 收到关闭执行，调度到主线程执行
-                g_idle_add([](gpointer) -> gboolean {
-                    if(hotspot_disable()){
-                        device_status_update_hotspot_ui(FALSE);
-                    }
-                    return G_SOURCE_REMOVE;
-                },nullptr);
-            }
-            break;
-            
-        case 0xA2:  // 会议状态
-            {
-                const char* states[] = {"开始", "暂停", "结束"};
-                printf("[串口解析] 会议状态: %s\n", pkt.data2 <= 2 ? states[pkt.data2] : "未知");
-                if(pkt.data2 == 0){
-                    // 发送会议开始消息到Web端
-                    if (g_webView) {
-                        webview_bridge_send(g_webView, "{\"type\":\"CREATE_MEETING\",\"value\":\"true\"}");
-                        g_print("会议开始\n");
-                    }
+    // 根据模块ID分发处理
+    switch(pkt.type) {
+        case UARTProtocol::TYPE_POWER:  // 0x01 开关机
+            printf("[串口解析] 开关机指令: 0x%02X\n", pkt.data1);
+            if (pkt.data1 == UARTProtocol::DEV_POWER_ON) {
+                printf("[串口解析] 开机\n");
+                device_state_set_power(POWER_STATUS_ON);
+                // 回复device当前电源状态
+                if (g_serialMonitor) {
+                    g_serialMonitor->sendPower(true);
                 }
-                if(pkt.data2 == 1){
-                    // 发送会议暂停消息到Web端
-                    if (g_webView) {
-                        webview_bridge_send(g_webView, "{\"type\":\"PAUSE_MEETING\",\"value\":\"true\"}");
-                        g_print("会议暂停\n");
-                    }
-                }
-                if(pkt.data2 == 2){
-                    // 发送会议结束消息到Web端
-                    if (g_webView) {
-                        webview_bridge_send(g_webView, "{\"type\":\"END_MEETING\",\"value\":\"true\"}");
-                        g_print("会议结束\n");
-                    }
+            } else if (pkt.data1 == UARTProtocol::DEV_POWER_OFF) {
+                printf("[串口解析] 关机\n");
+                device_state_set_power(POWER_STATUS_OFF);
+                if (g_serialMonitor) {
+                    g_serialMonitor->sendPower(false);
                 }
             }
             break;
+
+        case UARTProtocol::TYPE_MEETING:  // 0x02 会议
+            printf("[串口解析] 会议指令: 0x%02X\n", pkt.data1);
+            switch (pkt.data1) {
+                case UARTProtocol::DEV_MEET_QUERY:
+                    // device查询会议状态，回复当前状态
+                    printf("[串口解析] 查询会议状态\n");
+                    if (g_serialMonitor) {
+                        MeetingStatus ms = device_state_get_meeting();
+                        uint8_t code;
+                        switch (ms) {
+                            case MEETING_STATUS_IDLE:        code = UARTProtocol::APP_MEET_IDLE; break;
+                            case MEETING_STATUS_ONGOING:     code = UARTProtocol::APP_MEET_RUNNING; break;
+                            case MEETING_STATUS_PAUSED:      code = UARTProtocol::APP_MEET_PAUSED; break;
+                            case MEETING_STATUS_ENDED:       code = UARTProtocol::APP_MEET_ENDED; break;
+                            case MEETING_STATUS_SUMMARIZING: code = UARTProtocol::APP_MEET_SUMMARY; break;
+                            case MEETING_STATUS_START_FAIL:  code = UARTProtocol::APP_MEET_START_ERR; break;
+                            case MEETING_STATUS_PAUSE_FAIL:  code = UARTProtocol::APP_MEET_PAUSE_ERR; break;
+                            case MEETING_STATUS_END_FAIL:    code = UARTProtocol::APP_MEET_STOP_ERR; break;
+                            case MEETING_STATUS_RESUME_FAIL: code = UARTProtocol::APP_MEET_RESUME_ERR; break;
+                            default:                         code = UARTProtocol::APP_MEET_IDLE; break;
+                        }
+                        g_serialMonitor->sendMeeting(code);
+                    }
+                    break;
+
+                case UARTProtocol::DEV_MEET_START:
+                    printf("[串口解析] 开始会议\n");
+                    device_state_set_meeting(MEETING_STATUS_ONGOING);
+                    if (g_webView) {
+                        g_idle_add([](gpointer) -> gboolean {
+                            webview_bridge_send(g_webView, "{\"type\":\"CREATE_MEETING\",\"value\":\"true\"}");
+                            return G_SOURCE_REMOVE;
+                        }, nullptr);
+                    }
+                    break;
+
+                case UARTProtocol::DEV_MEET_PAUSE:
+                    printf("[串口解析] 暂停会议\n");
+                    device_state_set_meeting(MEETING_STATUS_PAUSED);
+                    if (g_webView) {
+                        g_idle_add([](gpointer) -> gboolean {
+                            webview_bridge_send(g_webView, "{\"type\":\"PAUSE_MEETING\",\"value\":\"true\"}");
+                            return G_SOURCE_REMOVE;
+                        }, nullptr);
+                    }
+                    break;
+                case UARTProtocol::DEV_MEET_RESUME:
+                    printf("[串口解析] 继续会议\n");
+                    device_state_set_meeting(MEETING_STATUS_ONGOING);
+                    if (g_webView) {
+                        g_idle_add([](gpointer) -> gboolean {
+                            webview_bridge_send(g_webView, "{\"type\":\"RESUME_MEETING\",\"value\":\"true\"}");
+                            return G_SOURCE_REMOVE;
+                        }, nullptr);
+                    }
+                    break;
+                case UARTProtocol::DEV_MEET_STOP:
+                    printf("[串口解析] 结束会议\n");
+                    device_state_set_meeting(MEETING_STATUS_IDLE);
+                    if (g_webView) {
+                        g_idle_add([](gpointer) -> gboolean {
+                            webview_bridge_send(g_webView, "{\"type\":\"END_MEETING\",\"value\":\"true\"}");
+                            return G_SOURCE_REMOVE;
+                        }, nullptr);
+                    }
+                    break;
+
+                default:
+                    printf("[串口解析] 未知会议指令: 0x%02X\n", pkt.data1);
+            }
+            break;
             
-        case 0xA3:  // 音量控制
-            {
-                const char* actions[] = {"增加", "减少", "长加", "长减", "结束"};
-                printf("[串口解析] 音量动作: %s\n", 
-                       pkt.data2 <= 4 ? actions[pkt.data2] : "未知");
+        case UARTProtocol::TYPE_HOTSPOT:  // 0x03 热点
+            printf("[串口解析] 热点指令: 0x%02X\n", pkt.data1);
+            switch (pkt.data1) {
+                case UARTProtocol::DEV_HOT_QUERY:
+                    // device查询热点状态，回复当前状态
+                    printf("[串口解析] 查询热点状态\n");
+                    if (g_serialMonitor) {
+                        HotspotStatus hs = device_state_get_hotspot();
+                        uint8_t code;
+                        switch (hs) {
+                            case HOTSPOT_STATUS_ON:            code = UARTProtocol::APP_HOT_ON; break;
+                            case HOTSPOT_STATUS_OFF:           code = UARTProtocol::APP_HOT_OFF; break;
+                            case HOTSPOT_STATUS_TURNING_ON:    code = UARTProtocol::APP_HOT_ONING; break;
+                            case HOTSPOT_STATUS_TURNING_OFF:   code = UARTProtocol::APP_HOT_OFFING; break;
+                            case HOTSPOT_STATUS_TURN_ON_FAIL:  code = UARTProtocol::APP_HOT_ON_ERR; break;
+                            case HOTSPOT_STATUS_TURN_OFF_FAIL: code = UARTProtocol::APP_HOT_OFF_ERR; break;
+                            default:                           code = UARTProtocol::APP_HOT_OFF; break;
+                        }
+                        g_serialMonitor->sendHotspot(code);
+                    }
+                    break;
+
+                case UARTProtocol::DEV_HOT_ON:
+                    // device指令开启热点（异步执行）
+                    printf("[串口解析] 开启热点\n");
+                device_state_set_hotspot(HOTSPOT_STATUS_TURNING_ON);
+                // 回复device"开启中"
+               if (g_serialMonitor) {
+                   g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_ONING);
+               }
+                g_idle_add([](gpointer) -> gboolean {
+                    // 更新UI为"开启中"
+                    device_status_update_hotspot_ui_loading(TRUE);
+                    // 子线程执行耗时的nmcli操作
+                    g_thread_new("serial-hotspot-on", [](gpointer) -> gpointer {
+                        gboolean ok = hotspot_enable();
+                        g_idle_add([](gpointer data) -> gboolean {
+                            gboolean success = GPOINTER_TO_INT(data);
+                            if (success) {
+                                device_state_set_hotspot(HOTSPOT_STATUS_ON);
+                                device_status_update_hotspot_ui(TRUE);
+                                if (g_serialMonitor) {
+                                   g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_ON);
+                                }
+                            } else {
+                                device_state_set_hotspot(HOTSPOT_STATUS_TURN_ON_FAIL);
+                                device_status_update_hotspot_ui(FALSE);
+                                if (g_serialMonitor) {
+                                   g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_ON_ERR);
+                                }
+                            }
+                            return G_SOURCE_REMOVE;
+                        }, GINT_TO_POINTER(ok));
+                        return nullptr;
+                    }, nullptr);
+                    return G_SOURCE_REMOVE;
+                }, nullptr);
+            	 break;
+            	 
+            case UARTProtocol::DEV_HOT_OFF:
+                // device指令关闭热点（异步执行）
+                printf("[串口解析] 关闭热点\n");
+                device_state_set_hotspot(HOTSPOT_STATUS_TURNING_OFF);
+                if (g_serialMonitor) {
+                    g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_OFFING);
+                }
+                g_idle_add([](gpointer) -> gboolean {
+                    device_status_update_hotspot_ui_loading(FALSE);
+                    g_thread_new("serial-hotspot-off", [](gpointer) -> gpointer {
+                        gboolean ok = hotspot_disable();
+                        g_idle_add([](gpointer data) -> gboolean {
+                            gboolean success = GPOINTER_TO_INT(data);
+                            if (success) {
+                                device_state_set_hotspot(HOTSPOT_STATUS_OFF);
+                                device_status_update_hotspot_ui(FALSE);
+                                if (g_serialMonitor) {
+                                    g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_OFF);
+                                }
+                            } else {
+                                device_state_set_hotspot(HOTSPOT_STATUS_TURN_OFF_FAIL);
+                                device_status_update_hotspot_ui(TRUE);
+                                if (g_serialMonitor) {
+                                    g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_OFF_ERR);
+                                }
+                            }
+                            return G_SOURCE_REMOVE;
+                        }, GINT_TO_POINTER(ok));
+                        return nullptr;
+                    }, nullptr);
+                    return G_SOURCE_REMOVE;
+                }, nullptr);
+            	 break;
+            	 
+            default:
+                printf("[串口解析] 未知热点指令: 0x%02X\n", pkt.data1);
+            }
+            break;
+            
+        case UARTProtocol::TYPE_MODE:  // 0x04 工作模式
+            printf("[串口解析] 工作模式: 0x%02X\n", pkt.data1);
+            if (pkt.data1 == UARTProtocol::DEV_MODE_PC) {
+                printf("[串口解析] PC模式\n");
+                device_state_set_work_mode(WORK_MODE_PC);
+            } else if (pkt.data1 == UARTProtocol::DEV_MODE_STANDALONE) {
+                printf("[串口解析] 独立模式\n");
+                device_state_set_work_mode(WORK_MODE_STANDALONE);
             }
             break;
             
         default:
-            printf("[串口解析] 未知功能码: 0x%02X\n", pkt.data1);
+            printf("[串口解析] 未知模块ID: 0x%02X\n", pkt.type);
     }
 }
 
@@ -136,51 +267,127 @@ static void on_js_message(const char *message, void *user_data) {
 
     // 根据 type 分发处理
     if (strcmp(type, "hotspot") == 0) {
-        // 热点控制
-        if (strcmp(action, "on") == 0) {
-            if (hotspot_enable()) {
-                device_status_update_hotspot_ui(TRUE);
-                // 回复前端
-                webview_bridge_send(g_webView,
-                    "{\"type\":\"hotspot\",\"state\":\"on\",\"result\":\"success\"}");
-            } else {
-                webview_bridge_send(g_webView,
-                    "{\"type\":\"hotspot\",\"state\":\"off\",\"result\":\"fail\"}");
-            }
-        } else if (strcmp(action, "off") == 0) {
-            if (hotspot_disable()) {
-                device_status_update_hotspot_ui(FALSE);
-                webview_bridge_send(g_webView,
-                    "{\"type\":\"hotspot\",\"state\":\"off\",\"result\":\"success\"}");
-            } else {
-                webview_bridge_send(g_webView,
-                    "{\"type\":\"hotspot\",\"state\":\"on\",\"result\":\"fail\"}");
-            }
-        }
+        g_print("[JS消息] 音量控制: %s（新协议不支持串口热点）\n", action);
+       // 热点控制（异步执行，不阻塞主线程）
+        // if (strcmp(action, "on") == 0) {
+        //     device_state_set_hotspot(HOTSPOT_STATUS_TURNING_ON);
+        //     device_status_update_hotspot_ui_loading(TRUE);
+        //     // 回复device"开启中"
+        //     if (g_serialMonitor) {
+        //         g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_ONING);
+        //     }
+        //     g_thread_new("js-hotspot-on", [](gpointer) -> gpointer {
+        //         gboolean ok = hotspot_enable();
+        //         g_idle_add([](gpointer data) -> gboolean {
+        //             gboolean success = GPOINTER_TO_INT(data);
+        //             if (success) {
+        //                 device_state_set_hotspot(HOTSPOT_STATUS_ON);
+        //                 device_status_update_hotspot_ui(TRUE);
+        //                 webview_bridge_send(g_webView,
+        //                     "{\"type\":\"hotspot\",\"state\":\"on\",\"result\":\"success\"}");
+        //                 if (g_serialMonitor) {
+        //                     g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_ON);
+        //                 }
+        //             } else {
+        //                 device_state_set_hotspot(HOTSPOT_STATUS_TURN_ON_FAIL);
+        //                 device_status_update_hotspot_ui(FALSE);
+        //                 webview_bridge_send(g_webView,
+        //                     "{\"type\":\"hotspot\",\"state\":\"off\",\"result\":\"fail\"}");
+        //                 if (g_serialMonitor) {
+        //                     g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_ON_ERR);
+        //                 }
+        //             }
+        //             return G_SOURCE_REMOVE;
+        //         }, GINT_TO_POINTER(ok));
+        //         return nullptr;
+        //     }, nullptr);
+        // } else if (strcmp(action, "off") == 0) {
+        //     device_state_set_hotspot(HOTSPOT_STATUS_TURNING_OFF);
+        //     device_status_update_hotspot_ui_loading(FALSE);
+        //     if (g_serialMonitor) {
+        //         g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_OFFING);
+        //     }
+        //     g_thread_new("js-hotspot-off", [](gpointer) -> gpointer {
+        //         gboolean ok = hotspot_disable();
+        //         g_idle_add([](gpointer data) -> gboolean {
+        //             gboolean success = GPOINTER_TO_INT(data);
+        //             if (success) {
+        //                 device_state_set_hotspot(HOTSPOT_STATUS_OFF);
+        //                 device_status_update_hotspot_ui(FALSE);
+        //                 webview_bridge_send(g_webView,
+        //                     "{\"type\":\"hotspot\",\"state\":\"off\",\"result\":\"success\"}");
+        //                 if (g_serialMonitor) {
+        //                     g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_OFF);
+        //                 }
+        //             } else {
+        //                 device_state_set_hotspot(HOTSPOT_STATUS_TURN_OFF_FAIL);
+        //                 device_status_update_hotspot_ui(TRUE);
+        //                 webview_bridge_send(g_webView,
+        //                     "{\"type\":\"hotspot\",\"state\":\"on\",\"result\":\"fail\"}");
+        //                 if (g_serialMonitor) {
+        //                     g_serialMonitor->sendHotspot(UARTProtocol::APP_HOT_OFF_ERR);
+        //                 }
+        //             }
+        //             return G_SOURCE_REMOVE;
+        //         }, GINT_TO_POINTER(ok));
+        //         return nullptr;
+        //     }, nullptr);
+        // }
 
     } else if (strcmp(type, "volume") == 0) {
-        // 音量控制 → 通过串口发给硬件
-        if (g_serialMonitor) {
-            if (strcmp(action, "up") == 0) {
-                g_serialMonitor->sendVolume(UARTProtocol::VOLUME_UP);
-            } else if (strcmp(action, "down") == 0) {
-                g_serialMonitor->sendVolume(UARTProtocol::VOLUME_DOWN);
-            }
-        }
+        // 音量控制（新协议中已移除串口音量，仅打印日志）
+        g_print("[JS消息] 音量控制: %s（新协议不支持串口音量）\n", action);
 
     } else if (strcmp(type, "meeting") == 0) {
-        // 会议控制 → 通过串口发给硬件
-        if (g_serialMonitor) {
-            if (strcmp(action, "start") == 0) {
-                g_print("接收到web端发送的会议开始消息\n");
-                g_serialMonitor->sendMeeting(UARTProtocol::MEETING_START);
-            } else if (strcmp(action, "pause") == 0) {
-                g_print("接收到web端发送的会议暂停消息\n");
-                g_serialMonitor->sendMeeting(UARTProtocol::MEETING_PAUSE);
-            } else if (strcmp(action, "end") == 0) {
-                g_print("接收到web端发送的会议结束消息\n");
-                g_serialMonitor->sendMeeting(UARTProtocol::MEETING_END);
+        // 会议控制 → 更新状态 + 通过串口回复device
+        if (strcmp(action, "start") == 0) {
+            g_print("接收到web端发送的会议开始消息\n");
+            device_state_set_meeting(MEETING_STATUS_ONGOING);
+            if (g_serialMonitor) {
+                g_serialMonitor->sendMeeting(UARTProtocol::APP_MEET_RUNNING);
             }
+        } else if (strcmp(action, "pause") == 0) {
+            g_print("接收到web端发送的会议暂停消息\n");
+            device_state_set_meeting(MEETING_STATUS_PAUSED);
+            if (g_serialMonitor) {
+                g_serialMonitor->sendMeeting(UARTProtocol::APP_MEET_PAUSED);
+            }
+        } else if (strcmp(action, "end") == 0) {
+            g_print("接收到web端发送的会议结束消息\n");
+            device_state_set_meeting(MEETING_STATUS_IDLE);
+            if (g_serialMonitor) {
+                g_serialMonitor->sendMeeting(UARTProtocol::APP_MEET_IDLE);
+            }
+        } else if (strcmp(action, "resume") == 0) {
+            g_print("接收到web端发送的会议继续消息\n");
+            device_state_set_meeting(MEETING_STATUS_ONGOING);
+            if (g_serialMonitor) {
+                g_serialMonitor->sendMeeting(UARTProtocol::APP_MEET_RUNNING);
+        	}
+        } else if (strcmp(action, "start_err") == 0) {
+            g_print("接收到web端发送的会议开始失败消息\n");
+            device_state_set_meeting(MEETING_STATUS_START_FAIL);
+            if (g_serialMonitor) {
+                g_serialMonitor->sendMeeting(UARTProtocol::APP_MEET_START_ERR);
+        	}
+        } else if (strcmp(action, "pause_err") == 0) {
+            g_print("接收到web端发送的会议暂停失败消息\n");
+            device_state_set_meeting(MEETING_STATUS_PAUSE_FAIL);
+            if (g_serialMonitor) {
+                g_serialMonitor->sendMeeting(UARTProtocol::APP_MEET_PAUSE_ERR);
+        	}
+        } else if (strcmp(action, "resume_err") == 0) {
+            g_print("接收到web端发送的会议继续失败消息\n");
+            device_state_set_meeting(MEETING_STATUS_RESUME_FAIL);
+            if (g_serialMonitor) {
+                g_serialMonitor->sendMeeting(UARTProtocol::APP_MEET_RESUME_ERR);
+        	}
+        } else if (strcmp(action, "stop_err") == 0) {
+            g_print("接收到web端发送的会议结束失败消息\n");
+            device_state_set_meeting(MEETING_STATUS_END_FAIL);
+            if (g_serialMonitor) {
+                g_serialMonitor->sendMeeting(UARTProtocol::APP_MEET_STOP_ERR);
+        	}
         }
 
     } else if (strcmp(type, "power") == 0) {
@@ -229,6 +436,9 @@ GtkWidget* window_create_kiosk(void) {
     // 使用Overlay布局：WebView在下层，按钮在上层
     GtkWidget *overlay = gtk_overlay_new();
     gtk_container_add(GTK_CONTAINER(window), overlay);
+
+    // 初始化设备状态管理
+    device_state_init();
     
     // 创建并添加WebView（底层）
     WebKitWebView *webView = webview_create();
@@ -247,6 +457,7 @@ GtkWidget* window_create_kiosk(void) {
     g_serialMonitor->setCallback(on_serial_data);
     // 3. 尝试打开串口（根据实际硬件修改设备路径）
     const char* serial_device = "/dev/meetingbox_serial";  // udev固定软连接
+    //const char* serial_device = "/dev/ttyUSB0";
     printf("正在尝试打开串口: %s ...\n", serial_device);
     if (g_serialMonitor->start(serial_device, 115200)) {
         printf("✓ 串口打开成功！\n");
@@ -269,8 +480,7 @@ GtkWidget* window_create_kiosk(void) {
     g_signal_connect(webView, "create", G_CALLBACK(webview_on_create_new_window), NULL);
 
     //webview_load_url(webView, "https://www.baidu.com");
-    //webview_load_url(webView, "file:///home/q/%E4%BC%9A%E8%AE%AE%E7%9B%92%E5%AD%90%E6%96%B0%E7%94%9F%E7%89%88/AI-MTB/test.html");
-    webview_load_url(webView, "http://133.156.1.145:9529/");
+    webview_load_url(webView, "http://localhost:9529/");
     gtk_container_add(GTK_CONTAINER(overlay), GTK_WIDGET(webView));
     
     create_two_buttons(GTK_OVERLAY(overlay));

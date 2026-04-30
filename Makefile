@@ -15,7 +15,8 @@ SRCS = Sources/main.cpp \
        Sources/WebViewJSBridge.cpp \
        Sources/UARTProtocol.cpp \
        Sources/SerialMonitor.cpp \
-       Sources/ResourcePath.cpp
+       Sources/ResourcePath.cpp \
+       Sources/DeviceState.cpp
 
 # 目标文件（.cpp替换为.o）
 OBJS = $(SRCS:.cpp=.o)

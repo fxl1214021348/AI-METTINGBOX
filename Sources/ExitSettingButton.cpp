@@ -11,9 +11,9 @@
 std::string resPath = getResourcePath();
 
 // 声明外部全局变量（在WindowManager.cpp中定义的）
-WebKitWebView *g_webView;
+//WebKitWebView *g_webView;
 
-SerialMonitor* g_serialMonitor;
+//SerialMonitor* g_serialMonitor;
 
 // ========== 直接定义结构体（原 LayeredButton.h 里的内容）==========
 typedef struct {
@@ -126,25 +126,6 @@ static void on_settings_clicked(GtkWidget *w, gpointer d) {
     GtkWidget *main_window = GTK_WIDGET(d);
     device_status_dialog_show(main_window);
 
-     // 发送消息到Web端
-    if (g_webView) {
-        webview_bridge_send(g_webView, "{\"type\":\"PAUSE_MEETING\",\"value\":\"true\"}");
-        g_print("可以发送消息吗\n");
-    }
-
-    // 串口回环测试 - 使用全局的g_serialMonitor
-    g_print("发送热点数据：\n");
-    
-    // 检查全局对象是否存在且已初始化
-    if (g_serialMonitor) {
-        if (g_serialMonitor->sendHotspot(true)) {
-            g_print("发送成功\n");
-        } else {
-            g_print("发送失败\n");
-        }
-    } else {
-        g_print("发送失败 - 串口监控器未初始化\n");
-    }
 }
 
 void create_two_buttons(GtkOverlay *overlay) {

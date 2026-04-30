@@ -38,31 +38,30 @@ public:
      */
     void stop();
     
-    // ========== 发送命令接口 ==========
+    // ========== App → Device 发送接口 ==========
     
     /**
-     * @brief 发送电源控制命令
-     * @param on true:开启 false:关闭
+     * @brief 发送电源状态回复
+     * @param on true:开机(0x10) false:关机(0x11)
      */
     bool sendPower(bool on);
     
     /**
-     * @brief 发送音量控制命令
-     * @param action 0x00增加 0x01减少 0x02长加 0x03长减 0x04结束
+     * @brief 发送会议状态回复
+     * @param code AppMeetingCode枚举值（0x10~0x17）
      */
-    bool sendVolume(uint8_t action);
+    bool sendMeeting(uint8_t code);
     
     /**
-     * @brief 发送会议控制命令
-     * @param state 0x00开始 0x01暂停 0x02结束
+     * @brief 发送热点状态回复
+     * @param code AppHotspotCode枚举值（0x10~0x15）
      */
-    bool sendMeeting(uint8_t state);
+    bool sendHotspot(uint8_t code);
     
     /**
-     * @brief 发送热点控制命令
-     * @param on true:开启 false:关闭
+     * @brief 发送获取工作模式请求
      */
-    bool sendHotspot(bool on);
+    bool sendGetWorkMode();
     
     // ========== 辅助功能接口 ==========
     
